@@ -1,0 +1,206 @@
+import { randomUUID } from 'node:crypto'
+import type { Server } from 'socket.io'
+import type { Bot } from 'mineflayer'
+import type {
+  ServerToClientEvents,
+  ClientToServerEvents,
+  BotStats,
+  InventoryItem,
+  ActivityEvent,
+  BotState,
+} from '@minebot/shared'
+import { tick, setActiveCommand } from '../bot/state-machine.js'
+import { parseCommand } from '../ai/command-parser.js'
+import { executeActions, type ActivityLogger } from '../bot/actions.js'
+import { getBot } from '../bot/index.js'
+
+type TypedIO = Server<ClientToServerEvents, ServerToClientEvents>
+
+function makeActivityEvent(
+  type: ActivityEvent['type'],
+  message: string,
+): ActivityEvent {
+  return {
+    id: randomUUID(),
+    timestamp: Date.now(),
+    type,
+    message,
+  }
+}
+
+function getInventoryItems(bot: Bot): InventoryItem[] {
+  return bot.inventory.items().map((item) => ({
+    slot: item.slot,
+    name: item.name,
+    displayName: item.displayName,
+    count: item.count,
+  }))
+}
+
+export function setupSocketBridge(io: TypedIO): {
+  startBotListeners: (bot: Bot) => void
+  stopBotListeners: () => void
+} {
+  let statsInterval: ReturnType<typeof setInterval> | null = null
+  let tickInterval: ReturnType<typeof setInterval> | null = null
+  let currentState: BotState = 'idle'
+
+  // Wire up connection handler — runs for every client
+  io.on('connection', (socket) => {
+    console.log(`[Socket] Client connected: ${socket.id}`)
+
+    // Send current status immediately on connect
+    const bot = getBot()
+    if (bot?.entity) {
+      io.emit('bot:status', 'connected')
+      socket.emit('bot:inventory', getInventoryItems(bot))
+    } else {
+      socket.emit('bot:status', 'disconnected')
+    }
+
+    socket.on('disconnect', () => {
+      console.log(`[Socket] Client disconnected: ${socket.id}`)
+    })
+
+    // Handle incoming voice:command from any connected client
+    socket.on('voice:command', async (command) => {
+      const bot = getBot()
+
+      if (!bot?.entity) {
+        const errEvent = makeActivityEvent('info', 'Bot is not connected to any server')
+        io.emit('bot:activity', errEvent)
+        return
+      }
+
+      console.log(`[Socket] voice:command received: "${command.text}"`)
+
+      // Log the command to the activity feed
+      const commandEvent = makeActivityEvent('command', `Voice: ${command.text}`)
+      io.emit('bot:activity', commandEvent)
+
+      // Mark bot as busy so state machine transitions to executing_command
+      setActiveCommand(true)
+
+      // Build the BotContext for Claude
+      const position = bot.entity.position
+      const ctx = {
+        health: bot.health,
+        food: bot.food,
+        position: { x: Math.round(position.x), y: Math.round(position.y), z: Math.round(position.z) },
+        inventory: bot.inventory.items().map((i) => `${i.count}x ${i.name}`),
+      }
+
+      try {
+        // Call Claude to parse the natural-language command
+        const response = await parseCommand(command.text, ctx)
+
+        // Send Claude's interpretation back to all clients
+        io.emit('command:response', response)
+
+        // Log Claude's understood message
+        const understood = makeActivityEvent('info', `Understood: ${response.understood}`)
+        io.emit('bot:activity', understood)
+
+        // Execute the actions sequentially
+        const log: ActivityLogger = (type, message) => {
+          io.emit('bot:activity', makeActivityEvent(type, message))
+        }
+        await executeActions(bot, response.actions, log)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error('[Socket] Error processing voice command:', msg)
+        io.emit('bot:activity', makeActivityEvent('info', `Error: ${msg}`))
+      } finally {
+        // Always clear the active-command flag when done
+        setActiveCommand(false)
+      }
+    })
+  })
+
+  function startBotListeners(bot: Bot): void {
+    console.log('[Socket] Starting bot listeners and stat intervals')
+
+    io.emit('bot:status', 'connected')
+
+    // Send full inventory on first connection
+    io.emit('bot:inventory', getInventoryItems(bot))
+
+    // Emit bot stats every 1 second
+    statsInterval = setInterval(() => {
+      if (!bot.entity) return
+
+      const position = bot.entity.position
+      const stats: BotStats = {
+        health: bot.health,
+        food: bot.food,
+        xp: {
+          level: bot.experience.level,
+          progress: bot.experience.progress,
+        },
+        position: {
+          x: Math.round(position.x * 10) / 10,
+          y: Math.round(position.y * 10) / 10,
+          z: Math.round(position.z * 10) / 10,
+        },
+        state: currentState,
+        timeOfDay: bot.time.timeOfDay,
+        isRaining: bot.isRaining,
+      }
+
+      io.emit('bot:stats', stats)
+    }, 1000)
+
+    // Run the state machine tick every 2 seconds
+    tickInterval = setInterval(() => {
+      tick((newState) => {
+        currentState = newState
+      })
+    }, 2000)
+
+    // --- Bot lifecycle events ---
+
+    bot.on('death', () => {
+      console.log('[Bot] death event')
+      io.emit('bot:status', 'dead')
+      io.emit('bot:activity', makeActivityEvent('danger', 'Bot died — will respawn'))
+    })
+
+    bot.on('spawn', () => {
+      console.log('[Bot] spawn event (after death)')
+      io.emit('bot:status', 'connected')
+      io.emit('bot:activity', makeActivityEvent('info', 'Bot spawned / respawned'))
+      io.emit('bot:inventory', getInventoryItems(bot))
+    })
+
+    // entityHurt fires when the bot entity takes damage
+    bot.on('entityHurt', (entity) => {
+      if (entity !== bot.entity) return
+      io.emit('bot:activity', makeActivityEvent('danger', `Bot took damage (health: ${bot.health})`))
+
+      if (bot.health <= 6) {
+        io.emit('bot:activity', makeActivityEvent('danger', `Low health warning: ${bot.health}/20`))
+      }
+    })
+
+    // Inventory slot changes — the updateSlot event is not typed, cast to any
+    ;(bot.inventory as any).on('updateSlot', () => {
+      io.emit('bot:inventory', getInventoryItems(bot))
+    })
+  }
+
+  function stopBotListeners(): void {
+    console.log('[Socket] Stopping bot listeners and stat intervals')
+
+    if (statsInterval !== null) {
+      clearInterval(statsInterval)
+      statsInterval = null
+    }
+
+    if (tickInterval !== null) {
+      clearInterval(tickInterval)
+      tickInterval = null
+    }
+  }
+
+  return { startBotListeners, stopBotListeners }
+}
