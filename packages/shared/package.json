@@ -1,0 +1,14 @@
+{
+  "name": "@minebot/shared",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/types.ts",
+  "types": "./src/types.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo 'no tests'"
+  },
+  "devDependencies": {
+    "typescript": "^5.7"
+  }
+}

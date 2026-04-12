@@ -1,0 +1,32 @@
+{
+  "name": "@minebot/bot",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39",
+    "@minebot/shared": "*",
+    "express": "^5",
+    "jsonwebtoken": "^9",
+    "mineflayer": "^4.37",
+    "mineflayer-armor-manager": "^2",
+    "mineflayer-auto-eat": "^5",
+    "mineflayer-collectblock": "^1.6",
+    "mineflayer-pathfinder": "^2.4",
+    "mineflayer-pvp": "^1.3",
+    "socket.io": "^4"
+  },
+  "devDependencies": {
+    "@types/express": "^5",
+    "@types/jsonwebtoken": "^9",
+    "tsx": "^4",
+    "typescript": "^5.7",
+    "vitest": "^3"
+  }
+}
