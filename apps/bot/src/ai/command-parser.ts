@@ -47,7 +47,6 @@ Check your memory when a command might need recalled information (locations, pre
 Do NOT check memory for simple, self-contained commands like "mina 10 piedra" or "ven aqui".
 
 ## Rules
-- ALWAYS respond with a raw JSON object. No markdown, no code fences, no plain text. NEVER respond with anything other than JSON.
 - The "understood" field must be a brief Spanish sentence describing what you'll do.
 - Think about prerequisites: if the user asks for stone axes, you need a crafting_table first, then planks, sticks, etc.
 - Use correct Minecraft block/item IDs (snake_case): oak_log, cobblestone, stone_axe, wooden_pickaxe, crafting_table, stick, oak_planks
@@ -56,10 +55,7 @@ Do NOT check memory for simple, self-contained commands like "mina 10 piedra" or
 - You can chain many actions. Be thorough - complete the full request in one response.
 - If a command is ambiguous, make reasonable assumptions and execute.
 - If the user says something casual ("hola", "que haces"), respond with a say action.
-- If you CANNOT fulfill a request (missing materials, impossible task), use a "say" action to explain why. NEVER respond with plain text.
-
-## Response format (MANDATORY — every response must be exactly this shape)
-{"understood": "<Spanish description>", "actions": [...]}
+- If you CANNOT fulfill a request (missing materials, impossible task), use a "say" action to explain why.
 `
 
 export function buildPrompt(command: string, ctx: BotContext, historyContext?: string): string {
@@ -127,6 +123,40 @@ export function parseResponse(raw: string): CommandResponse {
     }
   }
 }
+
+const COMMAND_RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    understood: {
+      type: 'string',
+      description: 'Brief Spanish sentence describing what the bot will do',
+    },
+    actions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          action: { type: 'string' },
+          x: { type: 'number' },
+          y: { type: 'number' },
+          z: { type: 'number' },
+          block: { type: 'string' },
+          count: { type: 'number' },
+          toY: { type: 'number' },
+          player: { type: 'string' },
+          entity: { type: 'string' },
+          item: { type: 'string' },
+          destination: { type: 'string' },
+          message: { type: 'string' },
+        },
+        required: ['action'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['understood', 'actions'],
+  additionalProperties: false,
+} as const
 
 export interface ParseCommandOptions {
   memoryDir: string
@@ -223,6 +253,12 @@ export async function parseCommand(
         system: SYSTEM_PROMPT,
         messages,
         tools: [memoryToolDef],
+        output_config: {
+          format: {
+            type: 'json_schema',
+            schema: COMMAND_RESPONSE_SCHEMA,
+          },
+        },
       })
 
       if (response.stop_reason === 'tool_use') {
@@ -248,7 +284,10 @@ export async function parseCommand(
       const textBlock = response.content.find((b) => b.type === 'text')
       const raw = textBlock?.type === 'text' ? textBlock.text : ''
       console.log('[AI] Raw response:', raw.slice(0, 300))
-      return parseResponse(raw)
+
+      // Structured output guarantees valid JSON matching our schema
+      const parsed = JSON.parse(raw) as { understood: string; actions: BotAction[] }
+      return { understood: parsed.understood, actions: parsed.actions }
     }
 
     return { understood: 'Demasiadas iteraciones de memoria. Intenta de nuevo.', actions: [] }
