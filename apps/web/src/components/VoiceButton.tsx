@@ -9,62 +9,73 @@ interface Props {
   onClick: () => void
 }
 
-const stateStyles: Record<VoiceState, { bg: string; label: string }> = {
-  idle: { bg: 'var(--bg-card)', label: 'HABLAR' },
-  listening: { bg: 'var(--danger)', label: 'ESCUCHANDO...' },
-  processing: { bg: 'var(--warning)', label: 'PROCESANDO...' },
+const stateConfig: Record<VoiceState, { bg: string; label: string; border?: string }> = {
+  idle: { bg: 'var(--mc-panel-light)', label: 'HABLAR' },
+  listening: { bg: '#5a1a1a', label: 'ESCUCHANDO...', border: 'var(--mc-danger)' },
+  processing: { bg: '#3a2a00', label: 'PROCESANDO...', border: 'var(--mc-warning)' },
 }
 
 export function VoiceButton({ state, isSupported, error, onPointerDown, onPointerUp, onClick }: Props) {
   if (!isSupported) {
     return (
-      <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--danger)' }}>
-        Tu navegador no soporta reconocimiento de voz. Usa Chrome o Edge.
-      </div>
+      <p style={{
+        fontFamily: 'var(--font-terminal)',
+        fontSize: '0.9rem',
+        color: 'var(--mc-text-dim)',
+        textAlign: 'center',
+      }}>
+        Navegador sin soporte de voz. Usa el campo de texto.
+      </p>
     )
   }
 
-  const { bg, label } = stateStyles[state]
+  const config = stateConfig[state]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
       <button
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
         onClick={onClick}
         style={{
-          width: '140px',
-          height: '140px',
-          borderRadius: '50%',
-          border: 'none',
-          background: bg,
-          color: 'var(--text-primary)',
-          fontSize: '1rem',
-          fontWeight: 'bold',
+          width: '100%',
+          padding: '0.6rem',
+          fontFamily: 'var(--font-pixel)',
+          fontSize: '0.45rem',
+          background: config.bg,
+          color: 'var(--mc-text)',
+          border: '2px solid',
+          borderColor: config.border
+            ? `${config.border} ${config.border} ${config.border} ${config.border}`
+            : 'var(--mc-border-light) var(--mc-border-dark) var(--mc-border-dark) var(--mc-border-light)',
           cursor: 'pointer',
-          transition: 'all 0.2s',
-          boxShadow: state === 'listening' ? '0 0 30px rgba(255,71,87,0.5)' : 'none',
-          animation: state === 'listening' ? 'pulse 1.5s infinite' : 'none',
+          textShadow: '1px 1px 0 var(--mc-text-shadow)',
           userSelect: 'none',
           touchAction: 'none',
+          animation: state === 'listening' ? 'mc-pulse 1.5s infinite' : 'none',
+          letterSpacing: '1px',
         }}
       >
-        {label}
+        {state === 'idle' ? '🎤' : state === 'listening' ? '🔴' : '⏳'} {config.label}
       </button>
       {error && (
-        <p style={{ color: 'var(--danger)', fontSize: '0.85rem', textAlign: 'center', margin: 0 }}>
+        <p style={{
+          fontFamily: 'var(--font-terminal)',
+          fontSize: '0.85rem',
+          color: 'var(--mc-danger)',
+          textAlign: 'center',
+        }}>
           {error}
         </p>
       )}
-      <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+      <p style={{
+        fontFamily: 'var(--font-terminal)',
+        fontSize: '0.75rem',
+        color: 'var(--mc-text-dim)',
+        textAlign: 'center',
+      }}>
         Mantener = push-to-talk / Click = toggle
       </p>
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.05); }
-        }
-      `}</style>
     </div>
   )
 }

@@ -5,32 +5,50 @@ interface Props {
 }
 
 const typeColors: Record<ActivityEvent['type'], string> = {
-  danger: 'var(--danger)',
-  command: 'var(--command)',
-  action: 'var(--success)',
-  info: 'var(--text-secondary)',
+  danger: 'var(--mc-danger)',
+  command: 'var(--mc-diamond)',
+  action: 'var(--mc-success)',
+  info: 'var(--mc-info)',
+}
+
+const typePrefix: Record<ActivityEvent['type'], string> = {
+  danger: '⚠',
+  command: '>',
+  action: '►',
+  info: '·',
 }
 
 export function ActivityFeed({ events }: Props) {
   return (
-    <div style={{
-      background: 'var(--bg-secondary)',
-      borderRadius: '12px',
-      padding: '1rem',
-      display: 'flex',
-      flexDirection: 'column',
-    }}>
-      <h2 style={{ marginBottom: '0.75rem' }}>Actividad</h2>
-      <div style={{ flex: 1, overflowY: 'auto', maxHeight: '250px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+    <div className="mc-panel">
+      <div className="mc-title">Actividad</div>
+      <div className="mc-inset" style={{
+        maxHeight: '200px',
+        overflowY: 'auto',
+        padding: '0.4rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1px',
+      }}>
         {events.length === 0 && (
-          <p style={{ color: 'var(--text-secondary)' }}>Sin actividad...</p>
+          <p style={{ color: 'var(--mc-text-dim)', fontFamily: 'var(--font-terminal)' }}>
+            Sin actividad...
+          </p>
         )}
         {events.map((event) => (
-          <div key={event.id} style={{ display: 'flex', gap: '0.5rem', fontSize: '0.85rem' }}>
-            <span style={{ color: 'var(--text-secondary)', flexShrink: 0 }}>
+          <div key={event.id} style={{
+            display: 'flex',
+            gap: '0.4rem',
+            fontFamily: 'var(--font-terminal)',
+            fontSize: '0.95rem',
+            lineHeight: 1.3,
+          }}>
+            <span style={{ color: 'var(--mc-text-dim)', flexShrink: 0, fontSize: '0.8rem' }}>
               {new Date(event.timestamp).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
             </span>
-            <span style={{ color: typeColors[event.type] }}>{event.message}</span>
+            <span style={{ color: typeColors[event.type] }}>
+              {typePrefix[event.type]} {event.message}
+            </span>
           </div>
         ))}
       </div>

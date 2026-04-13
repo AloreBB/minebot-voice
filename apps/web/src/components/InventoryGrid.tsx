@@ -5,42 +5,63 @@ interface Props {
 }
 
 export function InventoryGrid({ items }: Props) {
-  const slots = new Array(36).fill(null) as (InventoryItem | null)[]
-  for (const item of items) {
-    const idx = item.slot - 9
-    if (idx >= 0 && idx < 36) {
-      slots[idx] = item
-    }
-  }
+  const slots = Array.from({ length: 36 }, (_, i) => {
+    return items.find((item) => item.slot - 9 === i) ?? null
+  })
 
   return (
-    <div style={{ background: 'var(--bg-secondary)', borderRadius: '12px', padding: '1rem' }}>
-      <h2 style={{ marginBottom: '0.75rem' }}>Inventario</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: '4px' }}>
+    <div className="mc-panel">
+      <div className="mc-title">Inventario</div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(9, 1fr)',
+        gap: '2px',
+      }}>
         {slots.map((item, i) => (
           <div
             key={i}
-            title={item ? `${item.displayName} x${item.count}` : 'Vacio'}
+            className="mc-inset"
             style={{
               aspectRatio: '1',
-              background: item ? 'var(--bg-card)' : 'var(--bg-primary)',
-              borderRadius: '4px',
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
+              position: 'relative',
               fontSize: '0.65rem',
+              fontFamily: 'var(--font-terminal)',
+              color: item ? 'var(--mc-text)' : 'transparent',
+              cursor: item ? 'default' : 'default',
               padding: '2px',
               overflow: 'hidden',
-              border: item ? '1px solid var(--accent)' : '1px solid transparent',
             }}
+            title={item ? `${item.displayName} x${item.count}` : ''}
           >
             {item && (
               <>
-                <span style={{ textAlign: 'center', lineHeight: 1.1 }}>
-                  {item.name.replace(/_/g, ' ').slice(0, 10)}
+                <span style={{
+                  fontSize: '0.55rem',
+                  textAlign: 'center',
+                  lineHeight: 1.1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  wordBreak: 'break-all',
+                  maxHeight: '100%',
+                }}>
+                  {item.displayName.split(' ').pop()}
                 </span>
-                <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>{item.count}</span>
+                {item.count > 1 && (
+                  <span style={{
+                    position: 'absolute',
+                    bottom: '1px',
+                    right: '3px',
+                    fontFamily: 'var(--font-pixel)',
+                    fontSize: '0.3rem',
+                    color: 'var(--mc-text)',
+                    textShadow: '1px 1px 0 #000',
+                  }}>
+                    {item.count}
+                  </span>
+                )}
               </>
             )}
           </div>

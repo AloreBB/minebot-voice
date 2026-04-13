@@ -66,47 +66,58 @@ export function Dashboard({ token, onLogout }: Props) {
       minHeight: '100dvh',
       maxWidth: '600px',
       margin: '0 auto',
-      padding: '1rem',
-      gap: '1rem',
+      padding: '0.75rem',
+      gap: '0.5rem',
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: '1.25rem' }}>MineBot Control</h1>
+      {/* Header */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '0.5rem 0',
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <h1 style={{
+            fontFamily: 'var(--font-pixel)',
+            fontSize: '0.7rem',
+            letterSpacing: '2px',
+            textShadow: '2px 2px 0 var(--mc-text-shadow)',
+          }}>
+            MINEBOT
+          </h1>
           <span style={{
             width: '8px',
             height: '8px',
-            borderRadius: '50%',
-            background: connected ? 'var(--success)' : 'var(--danger)',
+            background: connected ? 'var(--mc-success)' : 'var(--mc-danger)',
+            display: 'inline-block',
+            imageRendering: 'pixelated',
+            boxShadow: connected ? '0 0 6px rgba(85,255,85,0.5)' : 'none',
           }} />
-          <button
-            onClick={onLogout}
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--text-secondary)',
-              color: 'var(--text-secondary)',
-              padding: '0.25rem 0.75rem',
-              borderRadius: '6px',
-              cursor: 'pointer',
-            }}
-          >
-            Salir
-          </button>
         </div>
+        <button onClick={onLogout} className="mc-btn" style={{ fontSize: '0.4rem', padding: '0.4rem 0.8rem' }}>
+          SALIR
+        </button>
       </div>
 
       <StatsPanel stats={stats} botStatus={botStatus} />
+
+      {/* Command Section */}
+      <div className="mc-panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div className="mc-title">Comandos</div>
+        <TextCommandInput onSend={sendCommand} disabled={!connected} />
+        <VoiceButton
+          state={voiceState}
+          isSupported={isSupported}
+          error={voiceError}
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          onClick={handleClick}
+        />
+      </div>
+
+      <CommandDisplay transcript={transcript} response={lastResponse} />
       <InventoryGrid items={inventory} />
       <ActivityFeed events={activity} />
-      <CommandDisplay transcript={transcript} response={lastResponse} />
-      <TextCommandInput onSend={sendCommand} disabled={!connected} />
-      <VoiceButton
-        state={voiceState}
-        isSupported={isSupported}
-        error={voiceError}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-        onClick={handleClick}
-      />
     </div>
   )
 }

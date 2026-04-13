@@ -20,45 +20,44 @@ export function TextCommandInput({ onSend, disabled }: Props) {
   )
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{
+    <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '4px' }}>
+      <div className="mc-inset" style={{
+        flex: 1,
         display: 'flex',
-        gap: '0.5rem',
-      }}
-    >
-      <input
-        type="text"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Escribe un comando..."
-        disabled={disabled}
-        style={{
-          flex: 1,
-          padding: '0.75rem 1rem',
-          borderRadius: '8px',
-          border: '1px solid var(--bg-card)',
-          background: 'var(--bg-secondary)',
-          color: 'var(--text-primary)',
-          fontSize: '0.95rem',
-          outline: 'none',
-        }}
-      />
+        alignItems: 'center',
+        padding: '0 0.5rem',
+      }}>
+        <span style={{
+          fontFamily: 'var(--font-terminal)',
+          color: 'var(--mc-diamond)',
+          fontSize: '1.1rem',
+          marginRight: '0.3rem',
+        }}>/</span>
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Escribe un comando..."
+          disabled={disabled}
+          style={{
+            flex: 1,
+            padding: '0.5rem 0',
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--mc-text)',
+            fontFamily: 'var(--font-terminal)',
+            fontSize: '1.1rem',
+            outline: 'none',
+          }}
+        />
+      </div>
       <button
         type="submit"
         disabled={disabled || !text.trim()}
-        style={{
-          padding: '0.75rem 1.25rem',
-          borderRadius: '8px',
-          border: 'none',
-          background: text.trim() ? 'var(--accent)' : 'var(--bg-card)',
-          color: text.trim() ? '#000' : 'var(--text-secondary)',
-          fontWeight: 'bold',
-          cursor: text.trim() ? 'pointer' : 'default',
-          transition: 'all 0.2s',
-        }}
+        className="mc-btn"
+        style={{ padding: '0.5rem 0.75rem', fontSize: '0.5rem' }}
       >
-        Enviar
+        &gt;
       </button>
     </form>
   )
