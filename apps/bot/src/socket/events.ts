@@ -16,6 +16,7 @@ import { runBehavior, canStartBehavior, isBehaviorRunning, stopCurrentBehavior }
 import { getBot } from '../bot/index.js'
 import { getDb } from '../db/index.js'
 import { saveConversation, getRecentHistory, formatHistoryForPrompt } from '../db/history.js'
+import { saveActivity } from '../db/activity.js'
 
 type TypedIO = Server<ClientToServerEvents, ServerToClientEvents>
 
@@ -23,12 +24,22 @@ function makeActivityEvent(
   type: ActivityEvent['type'],
   message: string,
 ): ActivityEvent {
-  return {
+  const event: ActivityEvent = {
     id: randomUUID(),
     timestamp: Date.now(),
     type,
     message,
   }
+
+  // Persist to database
+  try {
+    const db = getDb()
+    saveActivity(db, { type: event.type, message: event.message, timestamp: event.timestamp })
+  } catch (err) {
+    console.error('[Activity] Failed to save event:', err)
+  }
+
+  return event
 }
 
 function getInventoryItems(bot: Bot): InventoryItem[] {
