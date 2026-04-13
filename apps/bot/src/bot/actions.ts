@@ -151,6 +151,39 @@ export async function executeAction(
       break
     }
 
+    case 'sleep': {
+      log('action', 'Looking for a bed to sleep in')
+      const bedNames = [
+        'white_bed', 'orange_bed', 'magenta_bed', 'light_blue_bed',
+        'yellow_bed', 'lime_bed', 'pink_bed', 'gray_bed',
+        'light_gray_bed', 'cyan_bed', 'purple_bed', 'blue_bed',
+        'brown_bed', 'green_bed', 'red_bed', 'black_bed',
+      ]
+      const bedIds = bedNames
+        .map((name) => bot.registry.blocksByName[name]?.id)
+        .filter((id): id is number => id != null)
+      const beds = bot.findBlocks({ matching: bedIds, maxDistance: 64, count: 1 })
+      if (beds.length === 0) {
+        log('info', 'No bed found nearby')
+        break
+      }
+      const bedBlock = bot.blockAt(beds[0])
+      if (!bedBlock) {
+        log('info', 'Could not get bed block')
+        break
+      }
+      try {
+        log('action', `Pathfinding to bed at (${beds[0].x}, ${beds[0].y}, ${beds[0].z})`)
+        await bot.pathfinder.goto(new GoalNear(bedBlock.position.x, bedBlock.position.y, bedBlock.position.z, 2))
+        log('action', 'Sleeping in bed')
+        await bot.sleep(bedBlock)
+        log('info', 'Sleeping...')
+      } catch (err: any) {
+        log('info', `Could not sleep: ${err?.message ?? String(err)}`)
+      }
+      break
+    }
+
     default: {
       const exhaustive: never = action
       log('info', `Unknown action: ${(exhaustive as any).action}`)

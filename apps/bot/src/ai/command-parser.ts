@@ -29,6 +29,8 @@ Available actions (respond with exactly these JSON shapes):
 8. dropItem: { "action": "dropItem", "item": string, "count": number }
 9. stop: { "action": "stop" }
 10. say: { "action": "say", "message": string }
+11. sleep: { "action": "sleep" }
+   - Find the nearest bed and sleep in it. Use when the user says "ven a dormir", "ve a dormir", "duerme", etc.
 `.trim()
 
 export function buildPrompt(command: string, ctx: BotContext): string {

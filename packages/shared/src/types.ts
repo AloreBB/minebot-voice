@@ -55,6 +55,7 @@ export type BotAction =
   | { action: 'dropItem'; item: string; count: number }
   | { action: 'stop' }
   | { action: 'say'; message: string }
+  | { action: 'sleep' }
 
 // Socket.io typed events
 export interface ServerToClientEvents {

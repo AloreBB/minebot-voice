@@ -36,6 +36,15 @@ export function createBot(config: BotConfig): Bot {
 
   bot.on('spawn', () => {
     console.log('[Bot] Spawned in world')
+    // Apply Resistance 255 (immunity) after a short delay to ensure the bot is fully loaded
+    setTimeout(() => {
+      try {
+        bot?.chat('/effect give @s minecraft:resistance infinite 255 true')
+        console.log('[Bot] Applied resistance immunity')
+      } catch (err: any) {
+        console.error('[Bot] Could not apply resistance effect:', err?.message ?? String(err))
+      }
+    }, 1500)
   })
 
   bot.on('death', () => {

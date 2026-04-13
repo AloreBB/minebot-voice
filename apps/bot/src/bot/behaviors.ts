@@ -177,6 +177,36 @@ async function runMaintainingBehavior(bot: Bot, log: ActivityLogger): Promise<vo
     return
   }
 
+  // Try to sleep in a nearby bed
+  if (!bot.isSleeping) {
+    const bedNames = [
+      'white_bed', 'orange_bed', 'magenta_bed', 'light_blue_bed',
+      'yellow_bed', 'lime_bed', 'pink_bed', 'gray_bed',
+      'light_gray_bed', 'cyan_bed', 'purple_bed', 'blue_bed',
+      'brown_bed', 'green_bed', 'red_bed', 'black_bed',
+    ]
+    const bedIds = bedNames
+      .map((name) => bot.registry.blocksByName[name]?.id)
+      .filter((id): id is number => id != null)
+    const beds = bot.findBlocks({ matching: bedIds, maxDistance: 64, count: 1 })
+
+    if (beds.length > 0) {
+      const bedBlock = bot.blockAt(beds[0])
+      if (bedBlock) {
+        try {
+          log('action', `Pathfinding to bed at (${beds[0].x}, ${beds[0].y}, ${beds[0].z})`)
+          await bot.pathfinder.goto(new GoalNear(bedBlock.position.x, bedBlock.position.y, bedBlock.position.z, 2))
+          log('action', 'Sleeping in bed for the night')
+          await bot.sleep(bedBlock)
+          log('info', 'Sleeping...')
+          return
+        } catch (err: any) {
+          log('info', `Could not sleep in bed: ${err?.message ?? String(err)}`)
+        }
+      }
+    }
+  }
+
   // Night + outdoors: just stay alert and look around
   log('info', 'Staying alert during the night')
   await lookAround(bot)

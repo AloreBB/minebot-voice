@@ -15,6 +15,7 @@ export const io = new Server<ClientToServerEvents, ServerToClientEvents>(server,
   cors: { origin: '*' },
 })
 
+app.get('/api/health', (_req, res) => { res.json({ ok: true }) })
 app.use(express.json())
 app.use(authRouter())
 
@@ -22,8 +23,8 @@ app.use(authRouter())
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const webDist = join(__dirname, '../../web/dist')
 app.use(express.static(webDist))
-app.get('*', (_req, res, next) => {
-  if (_req.path.startsWith('/api')) return next()
+app.use((_req, res, next) => {
+  if (_req.path.startsWith('/api') || _req.path.startsWith('/socket.io')) return next()
   res.sendFile(join(webDist, 'index.html'))
 })
 

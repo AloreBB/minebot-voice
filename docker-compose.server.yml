@@ -1,12 +1,12 @@
 services:
   minecraft:
     image: itzg/minecraft-server:java21
-    container_name: mc-server
+    container_name: minecraft
     environment:
       EULA: "TRUE"
-      VERSION: "1.21.1"
+      VERSION: "LATEST"
       TYPE: PAPER
-      MEMORY: "2G"
+      MEMORY: "4G"
       JVM_XX_OPTS: "-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200"
       DIFFICULTY: normal
       MODE: survival
@@ -17,9 +17,8 @@ services:
       ENFORCE_SECURE_PROFILE: "false"
       WHITELIST: "Player1,MineBot,Player2"
       ENFORCE_WHITELIST: "TRUE"
-      OPS: "Player1"
-      RCON_ENABLED: "true"
-      RCON_PASSWORD: "minecraft-rcon-2026"
+      OPS: "Player1,MineBot"
+      SPAWN_PROTECTION: "0"
       PLUGINS: |
         https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot
         https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot
@@ -33,46 +32,14 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2.5G
-          cpus: "2.0"
+          memory: 5G
+          cpus: "3.0"
     restart: unless-stopped
     healthcheck:
       test: mc-health
-      start_period: 2m
+      start_period: 5m
       interval: 30s
       timeout: 10s
-      retries: 3
-
-  minebot:
-    image: minebot:latest
-    container_name: minebot
-    environment:
-      ANTHROPIC_BASE_URL: "${ANTHROPIC_BASE_URL}"
-      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
-      ACCESS_PASSWORD: "${ACCESS_PASSWORD}"
-      JWT_SECRET: "${JWT_SECRET}"
-      MINECRAFT_HOST: "mc-server"
-      MINECRAFT_PORT: "25565"
-      BOT_USERNAME: "MineBot"
-      NODE_ENV: "production"
-    expose:
-      - 3001
-    depends_on:
-      minecraft:
-        condition: service_healthy
-    networks:
-      - dokploy-network
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "1.0"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health"]
-      interval: 30s
-      timeout: 5s
-      start_period: 10s
       retries: 3
 
 networks:

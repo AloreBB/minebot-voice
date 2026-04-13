@@ -6,6 +6,7 @@ import { InventoryGrid } from './InventoryGrid'
 import { ActivityFeed } from './ActivityFeed'
 import { VoiceButton } from './VoiceButton'
 import { CommandDisplay } from './CommandDisplay'
+import { TextCommandInput } from './TextCommandInput'
 
 interface Props {
   token: string
@@ -97,6 +98,7 @@ export function Dashboard({ token, onLogout }: Props) {
       <InventoryGrid items={inventory} />
       <ActivityFeed events={activity} />
       <CommandDisplay transcript={transcript} response={lastResponse} />
+      <TextCommandInput onSend={sendCommand} disabled={!connected} />
       <VoiceButton
         state={voiceState}
         isSupported={isSupported}
