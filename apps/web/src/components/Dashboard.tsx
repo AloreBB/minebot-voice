@@ -1,3 +1,4 @@
+import { useRef, useCallback } from 'react'
 import { useSocket } from '../hooks/useSocket'
 import { useVoiceRecognition } from '../hooks/useVoiceRecognition'
 import { StatsPanel } from './StatsPanel'
@@ -13,30 +14,49 @@ interface Props {
 
 export function Dashboard({ token, onLogout }: Props) {
   const { connected, botStatus, stats, inventory, activity, lastResponse, sendCommand } = useSocket(token)
-  const { state: voiceState, transcript, startListening, stopListening, toggleListening, isSupported } = useVoiceRecognition(sendCommand)
+  const { state: voiceState, transcript, error: voiceError, startListening, stopListening, isSupported } = useVoiceRecognition(sendCommand)
 
-  let pointerDownTime = 0
+  const pointerDownTimeRef = useRef(0)
+  const longPressHandled = useRef(false)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout>>(null)
 
-  const handlePointerDown = () => {
-    pointerDownTime = Date.now()
-    startListening()
-  }
+  // pointerDown: record time, start listening after 400ms (long press = push-to-talk)
+  const handlePointerDown = useCallback(() => {
+    pointerDownTimeRef.current = Date.now()
+    longPressHandled.current = false
+    // If they hold for 400ms, start listening (push-to-talk mode)
+    longPressTimer.current = setTimeout(() => {
+      if (voiceState !== 'listening') {
+        startListening()
+      }
+    }, 400)
+  }, [voiceState, startListening])
 
-  const handlePointerUp = () => {
-    const held = Date.now() - pointerDownTime
-    if (held > 300) {
+  // pointerUp: if held > 400ms it was push-to-talk, stop listening
+  const handlePointerUp = useCallback(() => {
+    const held = Date.now() - pointerDownTimeRef.current
+    if (held > 400 && voiceState === 'listening') {
+      longPressHandled.current = true
       stopListening()
     }
-  }
+  }, [voiceState, stopListening])
 
-  const handleClick = () => {
-    const held = Date.now() - pointerDownTime
-    if (held <= 300) {
-      if (voiceState === 'listening') {
-        stopListening()
-      }
+  // click: if it wasn't a long press, toggle listening
+  const handleClick = useCallback(() => {
+    // Cancel the long press timer
+    if (longPressTimer.current) clearTimeout(longPressTimer.current)
+
+    if (longPressHandled.current) return
+    const held = Date.now() - pointerDownTimeRef.current
+    if (held > 400) return // Long press, handled by pointerUp
+
+    // Short click = toggle
+    if (voiceState === 'listening') {
+      stopListening()
+    } else {
+      startListening()
     }
-  }
+  }, [voiceState, startListening, stopListening])
 
   return (
     <div style={{
@@ -80,6 +100,7 @@ export function Dashboard({ token, onLogout }: Props) {
       <VoiceButton
         state={voiceState}
         isSupported={isSupported}
+        error={voiceError}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onClick={handleClick}

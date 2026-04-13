@@ -3,6 +3,7 @@ import type { VoiceState } from '../hooks/useVoiceRecognition'
 interface Props {
   state: VoiceState
   isSupported: boolean
+  error: string | null
   onPointerDown: () => void
   onPointerUp: () => void
   onClick: () => void
@@ -14,7 +15,7 @@ const stateStyles: Record<VoiceState, { bg: string; label: string }> = {
   processing: { bg: 'var(--warning)', label: 'PROCESANDO...' },
 }
 
-export function VoiceButton({ state, isSupported, onPointerDown, onPointerUp, onClick }: Props) {
+export function VoiceButton({ state, isSupported, error, onPointerDown, onPointerUp, onClick }: Props) {
   if (!isSupported) {
     return (
       <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--danger)' }}>
@@ -50,6 +51,11 @@ export function VoiceButton({ state, isSupported, onPointerDown, onPointerUp, on
       >
         {label}
       </button>
+      {error && (
+        <p style={{ color: 'var(--danger)', fontSize: '0.85rem', textAlign: 'center', margin: 0 }}>
+          {error}
+        </p>
+      )}
       <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
         Mantener = push-to-talk / Click = toggle
       </p>

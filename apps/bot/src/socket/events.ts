@@ -12,6 +12,7 @@ import type {
 import { tick, setActiveCommand } from '../bot/state-machine.js'
 import { parseCommand } from '../ai/command-parser.js'
 import { executeActions, type ActivityLogger } from '../bot/actions.js'
+import { runBehavior, canStartBehavior, isBehaviorRunning, stopCurrentBehavior } from '../bot/behaviors.js'
 import { getBot } from '../bot/index.js'
 
 type TypedIO = Server<ClientToServerEvents, ServerToClientEvents>
@@ -73,6 +74,9 @@ export function setupSocketBridge(io: TypedIO): {
       }
 
       console.log(`[Socket] voice:command received: "${command.text}"`)
+
+      // Interrupt any running autonomous behavior
+      stopCurrentBehavior(bot)
 
       // Log the command to the activity feed
       const commandEvent = makeActivityEvent('command', `Voice: ${command.text}`)
@@ -152,9 +156,26 @@ export function setupSocketBridge(io: TypedIO): {
 
     // Run the state machine tick every 2 seconds
     tickInterval = setInterval(() => {
+      const prevState = currentState
+
       tick((newState) => {
         currentState = newState
       })
+
+      // If state changed to a higher priority, interrupt current behavior
+      if (currentState !== prevState && isBehaviorRunning()) {
+        if (currentState === 'surviving' || currentState === 'executing_command') {
+          stopCurrentBehavior(bot)
+        }
+      }
+
+      // Run autonomous behaviors when not executing a user command
+      if (currentState !== 'executing_command' && canStartBehavior()) {
+        const log: ActivityLogger = (type, message) => {
+          io.emit('bot:activity', makeActivityEvent(type, message))
+        }
+        runBehavior(currentState, bot, log)
+      }
     }, 2000)
 
     // --- Bot lifecycle events ---

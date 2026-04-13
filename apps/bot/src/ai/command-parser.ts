@@ -10,7 +10,7 @@ export interface BotContext {
   inventory: string[]
 }
 
-const ACTION_SCHEMA = `
+export const ACTION_SCHEMA = `
 Available actions (respond with exactly these JSON shapes):
 
 1. moveTo: { "action": "moveTo", "x": number, "y": number, "z": number }
