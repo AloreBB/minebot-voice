@@ -1,4 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { betaMemoryTool } from '@anthropic-ai/sdk/helpers/beta/memory'
+import { BetaLocalFilesystemMemoryTool } from '@anthropic-ai/sdk/tools/memory/node'
 import type { CommandResponse, BotAction } from '@minebot/shared'
 
 const anthropic = new Anthropic()
@@ -35,6 +37,14 @@ Available actions (respond with exactly these JSON shapes):
 
 const SYSTEM_PROMPT = `You are MineBot, an expert Minecraft bot that translates natural language commands into action sequences. You are resourceful, smart, and always find a way to fulfill requests.
 
+## Memory
+You have a persistent memory system. Use it to remember important facts players tell you:
+- Player base locations, favorite items, preferences
+- Instructions like "never mine my diamonds" or "my base is at 100 64 200"
+- Anything a player asks you to remember
+Check your memory when a command might need recalled information (locations, preferences, past instructions).
+Do NOT check memory for simple, self-contained commands like "mina 10 piedra" or "ven aqui".
+
 ## Rules
 - Respond ONLY with a raw JSON object. No markdown, no code fences, no explanation.
 - The "understood" field must be a brief Spanish sentence describing what you'll do.
@@ -42,7 +52,7 @@ const SYSTEM_PROMPT = `You are MineBot, an expert Minecraft bot that translates 
 - Use correct Minecraft block/item IDs (snake_case): oak_log, cobblestone, stone_axe, wooden_pickaxe, crafting_table, stick, oak_planks
 - When the user says "madera" they usually mean oak_log. "piedra" = cobblestone for crafting.
 - For crafting tools, remember recipes: stone_axe needs 3 cobblestone + 2 sticks. wooden_pickaxe needs 3 oak_planks + 2 sticks.
-- You can chain many actions. Be thorough — complete the full request in one response.
+- You can chain many actions. Be thorough - complete the full request in one response.
 - If a command is ambiguous, make reasonable assumptions and execute.
 - If the user says something casual ("hola", "que haces"), respond with a say action.
 
@@ -50,34 +60,33 @@ const SYSTEM_PROMPT = `You are MineBot, an expert Minecraft bot that translates 
 {"understood": "<Spanish description>", "actions": [...]}
 `
 
-export function buildPrompt(command: string, ctx: BotContext): string {
+export function buildPrompt(command: string, ctx: BotContext, historyContext?: string): string {
   const inventoryStr =
-    ctx.inventory.length > 0 ? ctx.inventory.join(', ') : 'vacío'
+    ctx.inventory.length > 0 ? ctx.inventory.join(', ') : 'vacio'
 
-  const timeStr = ctx.timeOfDay >= 13000 && ctx.timeOfDay <= 23000 ? 'noche' : 'día'
+  const timeStr = ctx.timeOfDay >= 13000 && ctx.timeOfDay <= 23000 ? 'noche' : 'dia'
 
-  return `## Bot state
+  let prompt = `## Bot state
 - Health: ${ctx.health}/20, Food: ${ctx.food}/20
 - Position: x=${ctx.position.x}, y=${ctx.position.y}, z=${ctx.position.z}
 - Time: ${timeStr}${ctx.isRaining ? ', lloviendo' : ''}
-- Inventory: ${inventoryStr}
+- Inventory: ${inventoryStr}`
 
-## Actions
-${ACTION_SCHEMA}
+  if (historyContext) {
+    prompt += `\n\n## Recent conversation\n${historyContext}`
+  }
 
-## Command
-${command}`
+  prompt += `\n\n## Actions\n${ACTION_SCHEMA}\n\n## Command\n${command}`
+
+  return prompt
 }
 
 function extractJSON(raw: string): string {
-  // Try raw first
   const trimmed = raw.trim()
 
-  // Strip markdown code fences if present
   const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/)
   if (fenceMatch) return fenceMatch[1].trim()
 
-  // Find first { to last }
   const start = trimmed.indexOf('{')
   const end = trimmed.lastIndexOf('}')
   if (start !== -1 && end > start) return trimmed.slice(start, end + 1)
@@ -117,21 +126,41 @@ export function parseResponse(raw: string): CommandResponse {
   }
 }
 
+export interface ParseCommandOptions {
+  memoryDir: string
+}
+
+let memoryToolInstance: ReturnType<typeof betaMemoryTool> | null = null
+let memoryInitPath: string | null = null
+
+async function getMemoryTool(memoryDir: string) {
+  if (memoryToolInstance && memoryInitPath === memoryDir) return memoryToolInstance
+  const fs = await BetaLocalFilesystemMemoryTool.init(memoryDir)
+  memoryToolInstance = betaMemoryTool(fs)
+  memoryInitPath = memoryDir
+  return memoryToolInstance
+}
+
 export async function parseCommand(
   command: string,
   ctx: BotContext,
+  options: ParseCommandOptions,
+  historyContext?: string,
 ): Promise<CommandResponse> {
-  const prompt = buildPrompt(command, ctx)
+  const prompt = buildPrompt(command, ctx, historyContext)
+  const memory = await getMemoryTool(options.memoryDir)
 
   try {
-    const message = await anthropic.messages.create({
+    const response = await anthropic.beta.messages.toolRunner({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: prompt }],
+      tools: [memory],
+      max_iterations: 5,
     })
 
-    const textBlock = message.content.find((b) => b.type === 'text')
+    const textBlock = response.content.find((b) => b.type === 'text')
     const raw = textBlock?.type === 'text' ? textBlock.text : ''
 
     console.log('[AI] Raw response:', raw.slice(0, 300))
