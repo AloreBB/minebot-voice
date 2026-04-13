@@ -13,7 +13,21 @@ import type {
 
 type TypedSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 
-const MAX_ACTIVITY_ITEMS = 100
+interface ActivityRow {
+  id: number
+  type: string
+  message: string
+  timestamp: number
+}
+
+function apiRowToEvent(row: ActivityRow): ActivityEvent {
+  return {
+    id: String(row.id),
+    type: row.type as ActivityEvent['type'],
+    message: row.message,
+    timestamp: row.timestamp,
+  }
+}
 
 export function useSocket(token: string) {
   const socketRef = useRef<TypedSocket | null>(null)
@@ -23,6 +37,58 @@ export function useSocket(token: string) {
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [activity, setActivity] = useState<ActivityEvent[]>([])
   const [lastResponse, setLastResponse] = useState<CommandResponse | null>(null)
+  const [hasMoreActivity, setHasMoreActivity] = useState(false)
+  const [loadingActivity, setLoadingActivity] = useState(false)
+
+  // Track the oldest DB id we've loaded (for cursor pagination)
+  const oldestIdRef = useRef<number | null>(null)
+
+  // Load initial activity from API
+  const loadInitialActivity = useCallback(async () => {
+    try {
+      const res = await fetch('/api/activity?limit=50', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) return
+      const data = await res.json() as { events: ActivityRow[]; hasMore: boolean }
+
+      const events = data.events.map(apiRowToEvent)
+      setActivity(events) // newest first (API returns desc order)
+      setHasMoreActivity(data.hasMore)
+
+      if (data.events.length > 0) {
+        oldestIdRef.current = data.events[data.events.length - 1].id
+      }
+    } catch (err) {
+      console.error('[useSocket] Failed to load initial activity:', err)
+    }
+  }, [token])
+
+  // Load more (older) activity for infinite scroll
+  const loadMoreActivity = useCallback(async () => {
+    if (loadingActivity || !hasMoreActivity || oldestIdRef.current === null) return
+
+    setLoadingActivity(true)
+    try {
+      const res = await fetch(`/api/activity?limit=50&before=${oldestIdRef.current}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) return
+      const data = await res.json() as { events: ActivityRow[]; hasMore: boolean }
+
+      const olderEvents = data.events.map(apiRowToEvent)
+      setActivity(prev => [...prev, ...olderEvents]) // append older events at the end
+      setHasMoreActivity(data.hasMore)
+
+      if (data.events.length > 0) {
+        oldestIdRef.current = data.events[data.events.length - 1].id
+      }
+    } catch (err) {
+      console.error('[useSocket] Failed to load more activity:', err)
+    } finally {
+      setLoadingActivity(false)
+    }
+  }, [token, loadingActivity, hasMoreActivity])
 
   useEffect(() => {
     const socket: TypedSocket = io({
@@ -31,14 +97,17 @@ export function useSocket(token: string) {
 
     socketRef.current = socket
 
-    socket.on('connect', () => setConnected(true))
+    socket.on('connect', () => {
+      setConnected(true)
+      loadInitialActivity()
+    })
     socket.on('disconnect', () => setConnected(false))
 
     socket.on('bot:stats', setStats)
     socket.on('bot:status', setBotStatus)
     socket.on('bot:inventory', setInventory)
     socket.on('bot:activity', (event) => {
-      setActivity(prev => [event, ...prev].slice(0, MAX_ACTIVITY_ITEMS))
+      setActivity(prev => [event, ...prev])
     })
     socket.on('command:response', setLastResponse)
 
@@ -46,7 +115,7 @@ export function useSocket(token: string) {
       socket.disconnect()
       socketRef.current = null
     }
-  }, [token])
+  }, [token, loadInitialActivity])
 
   const sendCommand = useCallback((text: string) => {
     const command: VoiceCommand = { text, timestamp: Date.now() }
@@ -61,5 +130,8 @@ export function useSocket(token: string) {
     activity,
     lastResponse,
     sendCommand,
+    loadMoreActivity,
+    hasMoreActivity,
+    loadingActivity,
   }
 }

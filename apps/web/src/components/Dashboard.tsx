@@ -14,7 +14,7 @@ interface Props {
 }
 
 export function Dashboard({ token, onLogout }: Props) {
-  const { connected, botStatus, stats, inventory, activity, lastResponse, sendCommand } = useSocket(token)
+  const { connected, botStatus, stats, inventory, activity, lastResponse, sendCommand, loadMoreActivity, hasMoreActivity, loadingActivity } = useSocket(token)
   const { state: voiceState, transcript, error: voiceError, startListening, stopListening, isSupported } = useVoiceRecognition(sendCommand)
 
   const pointerDownTimeRef = useRef(0)
@@ -117,7 +117,7 @@ export function Dashboard({ token, onLogout }: Props) {
 
       <CommandDisplay transcript={transcript} response={lastResponse} />
       <InventoryGrid items={inventory} />
-      <ActivityFeed events={activity} />
+      <ActivityFeed events={activity} onLoadMore={loadMoreActivity} hasMore={hasMoreActivity} loading={loadingActivity} />
     </div>
   )
 }
