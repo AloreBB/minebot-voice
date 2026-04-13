@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react'
 import type { InventoryItem } from '@minebot/shared'
-import { getItemTexture } from '../utils/itemTextures'
+import { getItemTexture, texturesReady } from '../utils/itemTextures'
 
 interface Props {
   items: InventoryItem[]
@@ -40,6 +41,12 @@ function InventorySlot({ item }: { item: InventoryItem | null }) {
 }
 
 export function InventoryGrid({ items }: Props) {
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    texturesReady.then(() => setLoaded(true))
+  }, [])
+
   // Main inventory: slots 9-35 (3 rows of 9)
   const mainSlots = Array.from({ length: 27 }, (_, i) => {
     const slot = i + 9
@@ -62,13 +69,13 @@ export function InventoryGrid({ items }: Props) {
       <div className="mc-title">Inventario</div>
       <div style={gridStyle}>
         {mainSlots.map((item, i) => (
-          <InventorySlot key={`main-${i}`} item={item} />
+          <InventorySlot key={`main-${i}`} item={loaded ? item : null} />
         ))}
       </div>
       <div style={{ height: '8px' }} />
       <div style={gridStyle}>
         {hotbarSlots.map((item, i) => (
-          <InventorySlot key={`hotbar-${i}`} item={item} />
+          <InventorySlot key={`hotbar-${i}`} item={loaded ? item : null} />
         ))}
       </div>
     </div>
