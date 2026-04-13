@@ -1,23 +1,26 @@
+# Optional: Minecraft server for local use.
+# This is NOT required by the bot — you can point the bot to any server.
+# If you use this, make sure BOT_USERNAME is in WHITELIST and OPS.
 services:
   minecraft:
     image: itzg/minecraft-server:java21
     container_name: minecraft
     environment:
       EULA: "TRUE"
-      VERSION: "LATEST"
-      TYPE: PAPER
-      MEMORY: "4G"
+      VERSION: "${MC_VERSION:-LATEST}"
+      TYPE: "${MC_TYPE:-PAPER}"
+      MEMORY: "${MC_MEMORY:-4G}"
       JVM_XX_OPTS: "-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200"
-      DIFFICULTY: normal
-      MODE: survival
-      MOTD: "Mi servidor de Minecraft"
-      MAX_PLAYERS: "10"
-      VIEW_DISTANCE: "10"
+      DIFFICULTY: "${MC_DIFFICULTY:-normal}"
+      MODE: "${MC_MODE:-survival}"
+      MOTD: "${MC_MOTD:-Mi servidor de Minecraft}"
+      MAX_PLAYERS: "${MC_MAX_PLAYERS:-10}"
+      VIEW_DISTANCE: "${MC_VIEW_DISTANCE:-10}"
       ONLINE_MODE: "false"
       ENFORCE_SECURE_PROFILE: "false"
-      WHITELIST: "Player1,MineBot,Player2"
+      WHITELIST: "${MC_WHITELIST}"
       ENFORCE_WHITELIST: "TRUE"
-      OPS: "Player1,MineBot"
+      OPS: "${MC_OPS}"
       SPAWN_PROTECTION: "0"
       PLUGINS: |
         https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot
@@ -29,11 +32,6 @@ services:
       - ./data:/data
     networks:
       - dokploy-network
-    deploy:
-      resources:
-        limits:
-          memory: 5G
-          cpus: "3.0"
     restart: unless-stopped
     healthcheck:
       test: mc-health

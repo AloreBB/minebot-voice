@@ -74,25 +74,43 @@ JWT_SECRET=genera-un-string-aleatorio-largo
 docker compose up -d
 ```
 
-Esto levanta:
-- **Minecraft Server** (Paper, Java 21) en puerto `25565` (Java) y `19132` (Bedrock via Geyser)
-- **MineBot** con dashboard web en puerto `3001`
+Esto levanta el bot + dashboard. Necesitas un servidor de Minecraft corriendo por separado (propio o externo).
 
-### 3. Conectarse
+### 3. Conectar a tu servidor
 
-- **Minecraft:** Conecta a `tu-ip:25565` (Java) o `tu-ip:19132` (Bedrock)
-- **Dashboard:** Abre `http://tu-ip:3001` e ingresa tu password
+El bot se conecta al servidor configurado en las env vars:
+
+```env
+MINECRAFT_HOST=minecraft    # IP o hostname del servidor
+MINECRAFT_PORT=25565        # Puerto del servidor
+BOT_USERNAME=MineBot        # Nombre del bot en el juego
+```
+
+> **Si tu servidor usa whitelist:** Agrega el nombre del bot (por defecto `MineBot`) a la whitelist y a los operadores (OPS). El bot necesita permisos de OP para aplicarse efectos de proteccion.
+
+### 4. Acceder al dashboard
+
+Abre `http://tu-ip:3001` (local) o tu dominio configurado e ingresa tu password.
+
+## Servidor local (opcional)
+
+Si no tienes un servidor de Minecraft, incluimos `docker-compose.server.yml` como referencia:
+
+```bash
+docker compose -f docker-compose.server.yml up -d
+```
+
+Configura `MC_WHITELIST` y `MC_OPS` en tu `.env` (incluye siempre el nombre del bot).
 
 ## Despliegue con Dokploy
 
-El `docker-compose.yml` esta listo para Dokploy:
+El `docker-compose.yml` despliega solo el bot (sin servidor de Minecraft):
 
 1. Crear un servicio Compose en Dokploy apuntando al repo
 2. Configurar las variables de entorno en Dokploy (las del `.env`)
 3. Agregar dominio al servicio `minebot` (ej: `voice.mc.tudominio.com`)
 4. Dokploy maneja SSL y routing via Traefik automaticamente
-
-El servidor de Minecraft queda accesible en los puertos 25565/19132 directamente.
+5. Asegurar que el bot tiene acceso de red al servidor de Minecraft (`MINECRAFT_HOST`)
 
 ## Desarrollo local
 
@@ -118,16 +136,6 @@ yarn dev
 | `bot/plugins.ts` | Plugins mineflayer (pathfinder, auto-eat, pvp, etc.) |
 | `ai/command-parser.ts` | Integracion con Claude API |
 | `socket/events.ts` | Bridge Socket.io entre bot y dashboard |
-
-## Whitelist
-
-El servidor usa whitelist. Los jugadores permitidos se configuran en `docker-compose.yml`:
-
-```yaml
-WHITELIST: "Player1,MineBot,Player2"
-```
-
-Para agregar jugadores, modifica la variable y reinicia el contenedor.
 
 ## Comandos de ejemplo
 
