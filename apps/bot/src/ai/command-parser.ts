@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { betaMemoryTool } from '@anthropic-ai/sdk/helpers/beta/memory'
-import { BetaLocalFilesystemMemoryTool } from '@anthropic-ai/sdk/tools/memory/node'
+import type { Tool, MessageParam, ContentBlock } from '@anthropic-ai/sdk/resources/messages'
+import { promises as fs } from 'fs'
+import path from 'path'
 import type { CommandResponse, BotAction } from '@minebot/shared'
 
 const anthropic = new Anthropic()
@@ -130,15 +131,78 @@ export interface ParseCommandOptions {
   memoryDir: string
 }
 
-let memoryToolInstance: ReturnType<typeof betaMemoryTool> | null = null
-let memoryInitPath: string | null = null
+const MEMORY_FILE = 'bot-memories.json'
 
-async function getMemoryTool(memoryDir: string) {
-  if (memoryToolInstance && memoryInitPath === memoryDir) return memoryToolInstance
-  const fs = await BetaLocalFilesystemMemoryTool.init(memoryDir)
-  memoryToolInstance = betaMemoryTool(fs)
-  memoryInitPath = memoryDir
-  return memoryToolInstance
+const memoryToolDef: Tool = {
+  name: 'memory',
+  description:
+    'Persistent memory for storing and retrieving information across conversations. Use "read" to check remembered facts, "write" to save new facts, "delete" to remove a fact.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      action: {
+        type: 'string',
+        enum: ['read', 'write', 'delete'],
+        description: 'The memory operation to perform',
+      },
+      key: {
+        type: 'string',
+        description: 'Memory key (required for write/delete)',
+      },
+      value: {
+        type: 'string',
+        description: 'Value to store (required for write)',
+      },
+    },
+    required: ['action'],
+  },
+}
+
+async function loadMemories(memoryDir: string): Promise<Record<string, string>> {
+  const filePath = path.join(memoryDir, MEMORY_FILE)
+  try {
+    const data = await fs.readFile(filePath, 'utf-8')
+    return JSON.parse(data)
+  } catch {
+    return {}
+  }
+}
+
+async function saveMemories(memoryDir: string, memories: Record<string, string>): Promise<void> {
+  await fs.mkdir(memoryDir, { recursive: true })
+  await fs.writeFile(path.join(memoryDir, MEMORY_FILE), JSON.stringify(memories, null, 2))
+}
+
+async function handleMemoryTool(
+  memoryDir: string,
+  input: { action: string; key?: string; value?: string },
+): Promise<string> {
+  const memories = await loadMemories(memoryDir)
+
+  switch (input.action) {
+    case 'read': {
+      const keys = Object.keys(memories)
+      if (keys.length === 0) return 'No memories stored yet.'
+      return Object.entries(memories)
+        .map(([k, v]) => `- ${k}: ${v}`)
+        .join('\n')
+    }
+    case 'write': {
+      if (!input.key || !input.value) return 'Error: key and value are required for write.'
+      memories[input.key] = input.value
+      await saveMemories(memoryDir, memories)
+      return `Saved: ${input.key} = ${input.value}`
+    }
+    case 'delete': {
+      if (!input.key) return 'Error: key is required for delete.'
+      if (!(input.key in memories)) return `Key "${input.key}" not found.`
+      delete memories[input.key]
+      await saveMemories(memoryDir, memories)
+      return `Deleted: ${input.key}`
+    }
+    default:
+      return `Unknown action: ${input.action}`
+  }
 }
 
 export async function parseCommand(
@@ -148,24 +212,45 @@ export async function parseCommand(
   historyContext?: string,
 ): Promise<CommandResponse> {
   const prompt = buildPrompt(command, ctx, historyContext)
-  const memory = await getMemoryTool(options.memoryDir)
+  const messages: MessageParam[] = [{ role: 'user', content: prompt }]
 
   try {
-    const response = await anthropic.beta.messages.toolRunner({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: prompt }],
-      tools: [memory],
-      max_iterations: 5,
-    })
+    for (let i = 0; i < 5; i++) {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        messages,
+        tools: [memoryToolDef],
+      })
 
-    const textBlock = response.content.find((b) => b.type === 'text')
-    const raw = textBlock?.type === 'text' ? textBlock.text : ''
+      if (response.stop_reason === 'tool_use') {
+        const toolUseBlocks = response.content.filter(
+          (b): b is Extract<ContentBlock, { type: 'tool_use' }> => b.type === 'tool_use',
+        )
+        messages.push({ role: 'assistant', content: response.content })
 
-    console.log('[AI] Raw response:', raw.slice(0, 300))
+        const toolResults = await Promise.all(
+          toolUseBlocks.map(async (block) => ({
+            type: 'tool_result' as const,
+            tool_use_id: block.id,
+            content: await handleMemoryTool(
+              options.memoryDir,
+              block.input as { action: string; key?: string; value?: string },
+            ),
+          })),
+        )
+        messages.push({ role: 'user', content: toolResults })
+        continue
+      }
 
-    return parseResponse(raw)
+      const textBlock = response.content.find((b) => b.type === 'text')
+      const raw = textBlock?.type === 'text' ? textBlock.text : ''
+      console.log('[AI] Raw response:', raw.slice(0, 300))
+      return parseResponse(raw)
+    }
+
+    return { understood: 'Demasiadas iteraciones de memoria. Intenta de nuevo.', actions: [] }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[AI] API call failed:', msg)
