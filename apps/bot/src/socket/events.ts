@@ -51,6 +51,26 @@ function getInventoryItems(bot: Bot): InventoryItem[] {
   }))
 }
 
+function buildStats(bot: Bot, state: BotState): BotStats {
+  const position = bot.entity.position
+  return {
+    health: bot.health,
+    food: bot.food,
+    xp: {
+      level: bot.experience.level,
+      progress: bot.experience.progress,
+    },
+    position: {
+      x: Math.round(position.x * 10) / 10,
+      y: Math.round(position.y * 10) / 10,
+      z: Math.round(position.z * 10) / 10,
+    },
+    state,
+    timeOfDay: bot.time.timeOfDay,
+    isRaining: bot.isRaining,
+  }
+}
+
 export function setupSocketBridge(io: TypedIO): {
   startBotListeners: (bot: Bot) => void
   stopBotListeners: () => void
@@ -58,6 +78,13 @@ export function setupSocketBridge(io: TypedIO): {
   let statsInterval: ReturnType<typeof setInterval> | null = null
   let tickInterval: ReturnType<typeof setInterval> | null = null
   let currentState: BotState = 'idle'
+
+  // Named handlers so we can remove them on stop
+  let currentBot: Bot | null = null
+  let onDeath: (() => void) | null = null
+  let onSpawn: (() => void) | null = null
+  let onEntityHurt: ((entity: any) => void) | null = null
+  let onUpdateSlot: (() => void) | null = null
 
   const MAX_COMMAND_LENGTH = 500
   const COMMAND_COOLDOWN_MS = 3000
@@ -70,8 +97,9 @@ export function setupSocketBridge(io: TypedIO): {
     // Send current status immediately on connect
     const bot = getBot()
     if (bot?.entity) {
-      io.emit('bot:status', 'connected')
+      socket.emit('bot:status', 'connected')
       socket.emit('bot:inventory', getInventoryItems(bot))
+      socket.emit('bot:stats', buildStats(bot, currentState))
     } else {
       socket.emit('bot:status', 'disconnected')
     }
@@ -113,7 +141,7 @@ export function setupSocketBridge(io: TypedIO): {
       stopCurrentBehavior(bot)
 
       // Log the command to the activity feed
-      const commandEvent = makeActivityEvent('command', `Voice: ${command.text}`)
+      const commandEvent = makeActivityEvent('command', `You: ${command.text}`)
       io.emit('bot:activity', commandEvent)
 
       // Mark bot as busy so state machine transitions to executing_command
@@ -179,6 +207,8 @@ export function setupSocketBridge(io: TypedIO): {
   function startBotListeners(bot: Bot): void {
     console.log('[Socket] Starting bot listeners and stat intervals')
 
+    currentBot = bot
+
     io.emit('bot:status', 'connected')
 
     // Send full inventory on first connection
@@ -187,26 +217,7 @@ export function setupSocketBridge(io: TypedIO): {
     // Emit bot stats every 1 second
     statsInterval = setInterval(() => {
       if (!bot.entity) return
-
-      const position = bot.entity.position
-      const stats: BotStats = {
-        health: bot.health,
-        food: bot.food,
-        xp: {
-          level: bot.experience.level,
-          progress: bot.experience.progress,
-        },
-        position: {
-          x: Math.round(position.x * 10) / 10,
-          y: Math.round(position.y * 10) / 10,
-          z: Math.round(position.z * 10) / 10,
-        },
-        state: currentState,
-        timeOfDay: bot.time.timeOfDay,
-        isRaining: bot.isRaining,
-      }
-
-      io.emit('bot:stats', stats)
+      io.emit('bot:stats', buildStats(bot, currentState))
     }, 1000)
 
     // Run the state machine tick every 2 seconds
@@ -233,35 +244,38 @@ export function setupSocketBridge(io: TypedIO): {
       }
     }, 2000)
 
-    // --- Bot lifecycle events ---
+    // --- Bot lifecycle events (named so stopBotListeners can remove them) ---
 
-    bot.on('death', () => {
+    onDeath = () => {
       console.log('[Bot] death event')
       io.emit('bot:status', 'dead')
       io.emit('bot:activity', makeActivityEvent('danger', 'Bot died — will respawn'))
-    })
+    }
 
-    bot.on('spawn', () => {
+    onSpawn = () => {
       console.log('[Bot] spawn event (after death)')
       io.emit('bot:status', 'connected')
       io.emit('bot:activity', makeActivityEvent('info', 'Bot spawned / respawned'))
       io.emit('bot:inventory', getInventoryItems(bot))
-    })
+    }
 
-    // entityHurt fires when the bot entity takes damage
-    bot.on('entityHurt', (entity) => {
+    onEntityHurt = (entity: any) => {
       if (entity !== bot.entity) return
       io.emit('bot:activity', makeActivityEvent('danger', `Bot took damage (health: ${bot.health})`))
 
       if (bot.health <= 6) {
         io.emit('bot:activity', makeActivityEvent('danger', `Low health warning: ${bot.health}/20`))
       }
-    })
+    }
 
-    // Inventory slot changes — the updateSlot event is not typed, cast to any
-    ;(bot.inventory as any).on('updateSlot', () => {
+    onUpdateSlot = () => {
       io.emit('bot:inventory', getInventoryItems(bot))
-    })
+    }
+
+    bot.on('death', onDeath)
+    bot.on('spawn', onSpawn)
+    bot.on('entityHurt', onEntityHurt)
+    ;(bot.inventory as any).on('updateSlot', onUpdateSlot)
   }
 
   function stopBotListeners(): void {
@@ -276,6 +290,18 @@ export function setupSocketBridge(io: TypedIO): {
       clearInterval(tickInterval)
       tickInterval = null
     }
+
+    // Remove bot event listeners to prevent duplicates on respawn
+    if (currentBot) {
+      if (onDeath) currentBot.removeListener('death', onDeath)
+      if (onSpawn) currentBot.removeListener('spawn', onSpawn)
+      if (onEntityHurt) currentBot.removeListener('entityHurt', onEntityHurt)
+      if (onUpdateSlot) (currentBot.inventory as any).removeListener('updateSlot', onUpdateSlot)
+    }
+    onDeath = null
+    onSpawn = null
+    onEntityHurt = null
+    onUpdateSlot = null
   }
 
   return { startBotListeners, stopBotListeners }

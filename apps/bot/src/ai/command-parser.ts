@@ -47,7 +47,7 @@ Check your memory when a command might need recalled information (locations, pre
 Do NOT check memory for simple, self-contained commands like "mina 10 piedra" or "ven aqui".
 
 ## Rules
-- Respond ONLY with a raw JSON object. No markdown, no code fences, no explanation.
+- ALWAYS respond with a raw JSON object. No markdown, no code fences, no plain text. NEVER respond with anything other than JSON.
 - The "understood" field must be a brief Spanish sentence describing what you'll do.
 - Think about prerequisites: if the user asks for stone axes, you need a crafting_table first, then planks, sticks, etc.
 - Use correct Minecraft block/item IDs (snake_case): oak_log, cobblestone, stone_axe, wooden_pickaxe, crafting_table, stick, oak_planks
@@ -56,8 +56,9 @@ Do NOT check memory for simple, self-contained commands like "mina 10 piedra" or
 - You can chain many actions. Be thorough - complete the full request in one response.
 - If a command is ambiguous, make reasonable assumptions and execute.
 - If the user says something casual ("hola", "que haces"), respond with a say action.
+- If you CANNOT fulfill a request (missing materials, impossible task), use a "say" action to explain why. NEVER respond with plain text.
 
-## Response format
+## Response format (MANDATORY — every response must be exactly this shape)
 {"understood": "<Spanish description>", "actions": [...]}
 `
 
