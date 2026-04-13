@@ -10,8 +10,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39",
+    "@anthropic-ai/sdk": "^0.88.0",
     "@minebot/shared": "*",
+    "better-sqlite3": "^12.9.0",
+    "drizzle-orm": "^0.45.2",
     "express": "^5",
     "express-rate-limit": "^8.3.2",
     "helmet": "^8.1.0",
@@ -25,8 +27,10 @@
     "socket.io": "^4"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5",
     "@types/jsonwebtoken": "^9",
+    "drizzle-kit": "^0.31.10",
     "tsx": "^4",
     "typescript": "^5.7",
     "vitest": "^3"
