@@ -46,6 +46,10 @@ export function setupSocketBridge(io: TypedIO): {
   let tickInterval: ReturnType<typeof setInterval> | null = null
   let currentState: BotState = 'idle'
 
+  const MAX_COMMAND_LENGTH = 500
+  const COMMAND_COOLDOWN_MS = 3000
+  const commandTimestamps = new Map<string, number>()
+
   // Wire up connection handler — runs for every client
   io.on('connection', (socket) => {
     console.log(`[Socket] Client connected: ${socket.id}`)
@@ -60,11 +64,28 @@ export function setupSocketBridge(io: TypedIO): {
     }
 
     socket.on('disconnect', () => {
+      commandTimestamps.delete(socket.id)
       console.log(`[Socket] Client disconnected: ${socket.id}`)
     })
 
     // Handle incoming voice:command from any connected client
     socket.on('voice:command', async (command) => {
+      // Rate limit: one command per COMMAND_COOLDOWN_MS per client
+      const now = Date.now()
+      const lastCommand = commandTimestamps.get(socket.id) ?? 0
+      if (now - lastCommand < COMMAND_COOLDOWN_MS) {
+        const waitEvent = makeActivityEvent('info', 'Comando demasiado rápido, espera unos segundos')
+        socket.emit('bot:activity', waitEvent)
+        return
+      }
+      commandTimestamps.set(socket.id, now)
+
+      // Validate command input
+      if (!command?.text || typeof command.text !== 'string' || command.text.length > MAX_COMMAND_LENGTH) {
+        const errEvent = makeActivityEvent('info', 'Comando inválido o demasiado largo')
+        socket.emit('bot:activity', errEvent)
+        return
+      }
       const bot = getBot()
 
       if (!bot?.entity) {

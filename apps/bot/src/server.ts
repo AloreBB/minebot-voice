@@ -3,20 +3,42 @@ import { createServer } from 'node:http'
 import { Server } from 'socket.io'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import rateLimit from 'express-rate-limit'
+import helmet from 'helmet'
 import type { ServerToClientEvents, ClientToServerEvents } from '@minebot/shared'
 import { authRouter, verifyToken } from './auth.js'
 import { createBot } from './bot/index.js'
 import { setupSocketBridge } from './socket/events.js'
 
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : []
+
 const app = express()
 const server = createServer(app)
 
 export const io = new Server<ClientToServerEvents, ServerToClientEvents>(server, {
-  cors: { origin: '*' },
+  cors: {
+    origin: ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : false,
+  },
 })
 
+app.use(helmet({
+  contentSecurityPolicy: false,
+}))
+
 app.get('/api/health', (_req, res) => { res.json({ ok: true }) })
-app.use(express.json())
+app.use(express.json({ limit: '16kb' }))
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  message: { error: 'Too many login attempts, try again in 15 minutes' },
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+})
+
+app.use('/api/login', loginLimiter)
 app.use(authRouter())
 
 // Serve frontend static files in production

@@ -3,7 +3,12 @@ import { Router } from 'express'
 import type { LoginRequest, LoginResponse } from '@minebot/shared'
 
 function getSecret(): string {
-  return process.env.JWT_SECRET || 'fallback-dev-secret'
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    console.error('[Auth] FATAL: JWT_SECRET env var is not set. Exiting.')
+    process.exit(1)
+  }
+  return secret
 }
 
 export function createToken(password: string): string | null {
