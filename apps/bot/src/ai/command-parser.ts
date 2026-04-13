@@ -8,6 +8,8 @@ export interface BotContext {
   food: number
   position: { x: number; y: number; z: number }
   inventory: string[]
+  timeOfDay: number
+  isRaining: boolean
 }
 
 export const ACTION_SCHEMA = `
@@ -19,49 +21,75 @@ Available actions (respond with exactly these JSON shapes):
 3. digDown: { "action": "digDown", "toY": number }
    - toY is the Y coordinate to dig down to (diamond level is around -59)
 4. follow: { "action": "follow", "player": string }
-   - player is the Minecraft username to follow
 5. attack: { "action": "attack", "entity": string }
    - entity is the mob type (e.g. "zombie", "skeleton", "cow")
 6. craft: { "action": "craft", "item": string }
-   - item must be the Minecraft item ID (e.g. "crafting_table", "wooden_pickaxe")
+   - item must be the Minecraft item ID (e.g. "crafting_table", "wooden_pickaxe", "stone_axe")
 7. equipItem: { "action": "equipItem", "item": string, "destination": string }
    - destination: "hand", "off-hand", "head", "torso", "legs", "feet"
 8. dropItem: { "action": "dropItem", "item": string, "count": number }
 9. stop: { "action": "stop" }
 10. say: { "action": "say", "message": string }
 11. sleep: { "action": "sleep" }
-   - Find the nearest bed and sleep in it. Use when the user says "ven a dormir", "ve a dormir", "duerme", etc.
 `.trim()
+
+const SYSTEM_PROMPT = `You are MineBot, an expert Minecraft bot that translates natural language commands into action sequences. You are resourceful, smart, and always find a way to fulfill requests.
+
+## Rules
+- Respond ONLY with a raw JSON object. No markdown, no code fences, no explanation.
+- The "understood" field must be a brief Spanish sentence describing what you'll do.
+- Think about prerequisites: if the user asks for stone axes, you need a crafting_table first, then planks, sticks, etc.
+- Use correct Minecraft block/item IDs (snake_case): oak_log, cobblestone, stone_axe, wooden_pickaxe, crafting_table, stick, oak_planks
+- When the user says "madera" they usually mean oak_log. "piedra" = cobblestone for crafting.
+- For crafting tools, remember recipes: stone_axe needs 3 cobblestone + 2 sticks. wooden_pickaxe needs 3 oak_planks + 2 sticks.
+- You can chain many actions. Be thorough — complete the full request in one response.
+- If a command is ambiguous, make reasonable assumptions and execute.
+- If the user says something casual ("hola", "que haces"), respond with a say action.
+
+## Response format
+{"understood": "<Spanish description>", "actions": [...]}
+`
 
 export function buildPrompt(command: string, ctx: BotContext): string {
   const inventoryStr =
-    ctx.inventory.length > 0 ? ctx.inventory.join(', ') : 'empty'
+    ctx.inventory.length > 0 ? ctx.inventory.join(', ') : 'vacío'
 
-  return `You are a Minecraft bot assistant. The user gives you commands in natural language and you must translate them into a sequence of JSON actions.
+  const timeStr = ctx.timeOfDay >= 13000 && ctx.timeOfDay <= 23000 ? 'noche' : 'día'
 
-## Current bot state
-- health: ${ctx.health}
-- food: ${ctx.food}
-- position: x=${ctx.position.x}, y=${ctx.position.y}, z=${ctx.position.z}
-- inventory: ${inventoryStr}
+  return `## Bot state
+- Health: ${ctx.health}/20, Food: ${ctx.food}/20
+- Position: x=${ctx.position.x}, y=${ctx.position.y}, z=${ctx.position.z}
+- Time: ${timeStr}${ctx.isRaining ? ', lloviendo' : ''}
+- Inventory: ${inventoryStr}
 
-## Action schema
+## Actions
 ${ACTION_SCHEMA}
 
-## Response format
-Respond ONLY with valid JSON in this exact shape, no other text:
-{
-  "understood": "<brief Spanish description of what you will do>",
-  "actions": [ ...array of action objects... ]
-}
-
-## User command
+## Command
 ${command}`
 }
 
+function extractJSON(raw: string): string {
+  // Try raw first
+  const trimmed = raw.trim()
+
+  // Strip markdown code fences if present
+  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/)
+  if (fenceMatch) return fenceMatch[1].trim()
+
+  // Find first { to last }
+  const start = trimmed.indexOf('{')
+  const end = trimmed.lastIndexOf('}')
+  if (start !== -1 && end > start) return trimmed.slice(start, end + 1)
+
+  return trimmed
+}
+
 export function parseResponse(raw: string): CommandResponse {
+  const jsonStr = extractJSON(raw)
+
   try {
-    const parsed = JSON.parse(raw) as unknown
+    const parsed = JSON.parse(jsonStr) as unknown
     if (
       typeof parsed === 'object' &&
       parsed !== null &&
@@ -75,13 +103,15 @@ export function parseResponse(raw: string): CommandResponse {
         actions: (parsed as any).actions as BotAction[],
       }
     }
+    console.error('[AI] Unexpected response shape:', jsonStr.slice(0, 200))
     return {
-      understood: 'No entendí la respuesta del modelo (formato inesperado)',
+      understood: 'Respuesta inesperada del modelo. Intenta de nuevo.',
       actions: [],
     }
-  } catch {
+  } catch (err) {
+    console.error('[AI] Failed to parse JSON:', jsonStr.slice(0, 200), err)
     return {
-      understood: 'No entendí el comando. Por favor intenta de nuevo.',
+      understood: 'No pude procesar la respuesta. Intenta de nuevo.',
       actions: [],
     }
   }
@@ -93,14 +123,26 @@ export async function parseCommand(
 ): Promise<CommandResponse> {
   const prompt = buildPrompt(command, ctx)
 
-  const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 1024,
-    messages: [{ role: 'user', content: prompt }],
-  })
+  try {
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: prompt }],
+    })
 
-  const textBlock = message.content.find((b) => b.type === 'text')
-  const raw = textBlock?.type === 'text' ? textBlock.text : ''
+    const textBlock = message.content.find((b) => b.type === 'text')
+    const raw = textBlock?.type === 'text' ? textBlock.text : ''
 
-  return parseResponse(raw)
+    console.log('[AI] Raw response:', raw.slice(0, 300))
+
+    return parseResponse(raw)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[AI] API call failed:', msg)
+    return {
+      understood: `Error al contactar la IA: ${msg.slice(0, 100)}`,
+      actions: [],
+    }
+  }
 }

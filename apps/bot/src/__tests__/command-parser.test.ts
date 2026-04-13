@@ -9,9 +9,11 @@ describe('command-parser', () => {
         food: 18,
         position: { x: 100, y: 64, z: -50 },
         inventory: ['iron_pickaxe x1', 'cobblestone x32'],
+        timeOfDay: 6000,
+        isRaining: false,
       })
       expect(prompt).toContain('mina diamantes')
-      expect(prompt).toContain('health: 20')
+      expect(prompt).toContain('Health: 20')
     })
   })
 
@@ -32,7 +34,7 @@ describe('command-parser', () => {
 
     it('returns error response for invalid JSON', () => {
       const result = parseResponse('not json at all')
-      expect(result.understood).toContain('No entendí')
+      expect(result.understood).toContain('No pude procesar')
       expect(result.actions).toHaveLength(0)
     })
   })

@@ -92,6 +92,8 @@ export function setupSocketBridge(io: TypedIO): {
         food: bot.food,
         position: { x: Math.round(position.x), y: Math.round(position.y), z: Math.round(position.z) },
         inventory: bot.inventory.items().map((i) => `${i.count}x ${i.name}`),
+        timeOfDay: bot.time.timeOfDay,
+        isRaining: bot.isRaining,
       }
 
       try {

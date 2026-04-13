@@ -27,7 +27,7 @@ const GATHERABLE_LOGS = [
 let running = false
 let lastBehaviorTime = 0
 
-const BEHAVIOR_COOLDOWN = 8_000 // 8s between behavior attempts
+const BEHAVIOR_COOLDOWN = 4_000 // 4s between behavior attempts
 
 export function isBehaviorRunning(): boolean {
   return running
@@ -207,8 +207,10 @@ async function runMaintainingBehavior(bot: Bot, log: ActivityLogger): Promise<vo
     }
   }
 
-  // Night + outdoors: just stay alert and look around
-  log('info', 'Staying alert during the night')
+  // Night + outdoors: stay alert (log only occasionally to avoid spam)
+  if (Math.random() < 0.15) {
+    log('info', 'Staying alert during the night')
+  }
   await lookAround(bot)
 }
 
