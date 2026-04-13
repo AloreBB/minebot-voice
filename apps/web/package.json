@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/generate-textures.mjs && tsc -b && vite build",
+    "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "echo 'no tests yet'",
     "generate:textures": "node scripts/generate-textures.mjs"

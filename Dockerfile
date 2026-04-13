@@ -12,6 +12,10 @@ COPY packages/shared/package.json packages/shared/
 # Install dependencies
 RUN yarn install --frozen-lockfile
 
+# Generate MC item textures (cached — only reruns when minecraft-assets version changes)
+COPY apps/web/scripts/ apps/web/scripts/
+RUN node apps/web/scripts/generate-textures.mjs
+
 # Copy source
 COPY apps/ apps/
 COPY packages/ packages/
