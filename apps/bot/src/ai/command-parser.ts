@@ -1,10 +1,24 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { Tool, MessageParam, ContentBlock } from '@anthropic-ai/sdk/resources/messages'
+import OpenAI from 'openai'
 import { promises as fs } from 'fs'
 import path from 'path'
 import type { CommandResponse, BotAction } from '@minebot/shared'
 
-const anthropic = new Anthropic()
+// Provider selection via env: "openai" or "anthropic" (default)
+const AI_PROVIDER = process.env.AI_PROVIDER ?? 'anthropic'
+
+const anthropic = AI_PROVIDER === 'anthropic' ? new Anthropic() : null
+const openai = AI_PROVIDER === 'openai'
+  ? new OpenAI({
+      baseURL: process.env.OPENAI_BASE_URL,
+      apiKey: process.env.OPENAI_API_KEY,
+    })
+  : null
+
+const AI_MODEL = process.env.AI_MODEL ?? (
+  AI_PROVIDER === 'openai' ? 'MiniMax-M2.5' : 'claude-sonnet-4-20250514'
+)
 
 export interface BotContext {
   health: number
@@ -61,6 +75,37 @@ Do NOT check memory for simple, self-contained commands like "mina 10 piedra" or
 ## Response format (MANDATORY — every response must be exactly this shape)
 {"understood": "<Spanish description>", "actions": [...]}
 `
+
+const COMMAND_RESPONSE_SCHEMA = {
+  type: 'object' as const,
+  properties: {
+    understood: { type: 'string' as const },
+    actions: {
+      type: 'array' as const,
+      items: {
+        type: 'object' as const,
+        properties: {
+          action: { type: 'string' as const },
+          x: { type: 'number' as const },
+          y: { type: 'number' as const },
+          z: { type: 'number' as const },
+          block: { type: 'string' as const },
+          count: { type: 'number' as const },
+          toY: { type: 'number' as const },
+          player: { type: 'string' as const },
+          entity: { type: 'string' as const },
+          item: { type: 'string' as const },
+          destination: { type: 'string' as const },
+          message: { type: 'string' as const },
+        },
+        required: ['action'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['understood', 'actions'],
+  additionalProperties: false,
+}
 
 export function buildPrompt(command: string, ctx: BotContext, historyContext?: string): string {
   const inventoryStr =
@@ -159,6 +204,27 @@ const memoryToolDef: Tool = {
   },
 }
 
+const openaiMemoryToolDef: OpenAI.ChatCompletionTool = {
+  type: 'function',
+  function: {
+    name: 'memory',
+    description: memoryToolDef.description,
+    parameters: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['read', 'write', 'delete'],
+          description: 'The memory operation to perform',
+        },
+        key: { type: 'string', description: 'Memory key (required for write/delete)' },
+        value: { type: 'string', description: 'Value to store (required for write)' },
+      },
+      required: ['action'],
+    },
+  },
+}
+
 async function loadMemories(memoryDir: string): Promise<Record<string, string>> {
   const filePath = path.join(memoryDir, MEMORY_FILE)
   try {
@@ -206,6 +272,107 @@ async function handleMemoryTool(
   }
 }
 
+// ── Anthropic provider ──
+
+async function parseCommandAnthropic(
+  prompt: string,
+  memoryDir: string,
+): Promise<CommandResponse> {
+  const messages: MessageParam[] = [{ role: 'user', content: prompt }]
+
+  for (let i = 0; i < 5; i++) {
+    const response = await anthropic!.messages.create({
+      model: AI_MODEL,
+      max_tokens: 1024,
+      system: SYSTEM_PROMPT,
+      messages,
+      tools: [memoryToolDef],
+    })
+
+    if (response.stop_reason === 'tool_use') {
+      const toolUseBlocks = response.content.filter(
+        (b): b is Extract<ContentBlock, { type: 'tool_use' }> => b.type === 'tool_use',
+      )
+      messages.push({ role: 'assistant', content: response.content })
+
+      const toolResults = await Promise.all(
+        toolUseBlocks.map(async (block) => ({
+          type: 'tool_result' as const,
+          tool_use_id: block.id,
+          content: await handleMemoryTool(
+            memoryDir,
+            block.input as { action: string; key?: string; value?: string },
+          ),
+        })),
+      )
+      messages.push({ role: 'user', content: toolResults })
+      continue
+    }
+
+    const textBlock = response.content.find((b) => b.type === 'text')
+    const raw = textBlock?.type === 'text' ? textBlock.text : ''
+    console.log('[AI] Raw response:', raw.slice(0, 300))
+    return parseResponse(raw)
+  }
+
+  return { understood: 'Demasiadas iteraciones de memoria. Intenta de nuevo.', actions: [] }
+}
+
+// ── OpenAI provider (supports response_format for structured output) ──
+
+async function parseCommandOpenAI(
+  prompt: string,
+  memoryDir: string,
+): Promise<CommandResponse> {
+  const messages: OpenAI.ChatCompletionMessageParam[] = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'user', content: prompt },
+  ]
+
+  for (let i = 0; i < 5; i++) {
+    const response = await openai!.chat.completions.create({
+      model: AI_MODEL,
+      max_tokens: 1024,
+      messages,
+      tools: [openaiMemoryToolDef],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'command_response',
+          strict: true,
+          schema: COMMAND_RESPONSE_SCHEMA,
+        },
+      },
+    })
+
+    const choice = response.choices[0]
+    const msg = choice.message
+
+    if (choice.finish_reason === 'tool_calls' && msg.tool_calls?.length) {
+      messages.push(msg)
+      for (const toolCall of msg.tool_calls) {
+        const args = JSON.parse(toolCall.function.arguments) as {
+          action: string; key?: string; value?: string
+        }
+        const result = await handleMemoryTool(memoryDir, args)
+        messages.push({ role: 'tool', tool_call_id: toolCall.id, content: result })
+      }
+      continue
+    }
+
+    const raw = msg.content ?? ''
+    console.log('[AI] Raw response:', raw.slice(0, 300))
+
+    // response_format guarantees valid JSON matching our schema
+    const parsed = JSON.parse(raw) as { understood: string; actions: BotAction[] }
+    return { understood: parsed.understood, actions: parsed.actions }
+  }
+
+  return { understood: 'Demasiadas iteraciones de memoria. Intenta de nuevo.', actions: [] }
+}
+
+// ── Public API ──
+
 export async function parseCommand(
   command: string,
   ctx: BotContext,
@@ -213,46 +380,12 @@ export async function parseCommand(
   historyContext?: string,
 ): Promise<CommandResponse> {
   const prompt = buildPrompt(command, ctx, historyContext)
-  const messages: MessageParam[] = [{ role: 'user', content: prompt }]
 
   try {
-    for (let i = 0; i < 5; i++) {
-      const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        system: SYSTEM_PROMPT,
-        messages,
-        tools: [memoryToolDef],
-      })
-
-      if (response.stop_reason === 'tool_use') {
-        const toolUseBlocks = response.content.filter(
-          (b): b is Extract<ContentBlock, { type: 'tool_use' }> => b.type === 'tool_use',
-        )
-        messages.push({ role: 'assistant', content: response.content })
-
-        const toolResults = await Promise.all(
-          toolUseBlocks.map(async (block) => ({
-            type: 'tool_result' as const,
-            tool_use_id: block.id,
-            content: await handleMemoryTool(
-              options.memoryDir,
-              block.input as { action: string; key?: string; value?: string },
-            ),
-          })),
-        )
-        messages.push({ role: 'user', content: toolResults })
-        continue
-      }
-
-      const textBlock = response.content.find((b) => b.type === 'text')
-      const raw = textBlock?.type === 'text' ? textBlock.text : ''
-      console.log('[AI] Raw response:', raw.slice(0, 300))
-
-      return parseResponse(raw)
+    if (AI_PROVIDER === 'openai') {
+      return await parseCommandOpenAI(prompt, options.memoryDir)
     }
-
-    return { understood: 'Demasiadas iteraciones de memoria. Intenta de nuevo.', actions: [] }
+    return await parseCommandAnthropic(prompt, options.memoryDir)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[AI] API call failed:', msg)
