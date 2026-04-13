@@ -3,6 +3,9 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+# Native build deps for better-sqlite3
+RUN apk add --no-cache python3 make g++
+
 # Copy workspace config
 COPY package.json yarn.lock turbo.json ./
 COPY apps/bot/package.json apps/bot/
@@ -24,6 +27,9 @@ FROM node:22-alpine
 
 WORKDIR /app
 
+# Native build deps for better-sqlite3 (needed for production install too)
+RUN apk add --no-cache python3 make g++
+
 COPY --from=builder /app/package.json /app/yarn.lock ./
 COPY --from=builder /app/apps/bot/package.json apps/bot/
 COPY --from=builder /app/packages/shared/package.json packages/shared/
@@ -31,10 +37,16 @@ COPY --from=builder /app/packages/shared/package.json packages/shared/
 # Install production deps only
 RUN yarn install --frozen-lockfile --production
 
+# Clean up build deps but keep libstdc++ (needed by better-sqlite3 at runtime)
+RUN apk del python3 make g++ && apk add --no-cache libstdc++
+
 # Copy built outputs
 COPY --from=builder /app/apps/bot/dist apps/bot/dist/
 COPY --from=builder /app/apps/web/dist apps/web/dist/
 COPY --from=builder /app/packages/shared/dist packages/shared/dist/
+
+# Create data directory for SQLite + memory files
+RUN mkdir -p /app/data/memories
 
 ENV NODE_ENV=production
 

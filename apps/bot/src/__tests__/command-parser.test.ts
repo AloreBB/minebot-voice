@@ -15,6 +15,31 @@ describe('command-parser', () => {
       expect(prompt).toContain('mina diamantes')
       expect(prompt).toContain('Health: 20')
     })
+
+    it('includes conversation history when provided', () => {
+      const prompt = buildPrompt('ven aqui', {
+        health: 20,
+        food: 18,
+        position: { x: 0, y: 64, z: 0 },
+        inventory: [],
+        timeOfDay: 6000,
+        isRaining: false,
+      }, 'Steve: mina piedra\nBot: Voy a minar piedra')
+      expect(prompt).toContain('## Recent conversation')
+      expect(prompt).toContain('Steve: mina piedra')
+    })
+
+    it('omits history section when history is empty', () => {
+      const prompt = buildPrompt('hola', {
+        health: 20,
+        food: 18,
+        position: { x: 0, y: 64, z: 0 },
+        inventory: [],
+        timeOfDay: 6000,
+        isRaining: false,
+      })
+      expect(prompt).not.toContain('## Recent conversation')
+    })
   })
 
   describe('parseResponse', () => {
