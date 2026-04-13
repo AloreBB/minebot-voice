@@ -100,7 +100,12 @@ Si no tienes un servidor de Minecraft, incluimos `docker-compose.server.yml` com
 docker compose -f docker-compose.server.yml up -d
 ```
 
-Configura `MC_WHITELIST` y `MC_OPS` en tu `.env` (incluye siempre el nombre del bot).
+Configura `MC_WHITELIST` y `MC_OPS` en tu `.env` (separados por coma, sin espacios):
+
+```env
+MC_WHITELIST=TuNombre,MineBot,OtroJugador
+MC_OPS=TuNombre,MineBot
+```
 
 ## Despliegue con Dokploy
 

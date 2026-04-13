@@ -18,9 +18,9 @@ services:
       VIEW_DISTANCE: "${MC_VIEW_DISTANCE:-10}"
       ONLINE_MODE: "false"
       ENFORCE_SECURE_PROFILE: "false"
-      WHITELIST: "${MC_WHITELIST}"
+      WHITELIST: "${MC_WHITELIST}"          # Comma-separated: Player1,Player2,MineBot
       ENFORCE_WHITELIST: "TRUE"
-      OPS: "${MC_OPS}"
+      OPS: "${MC_OPS}"                      # Comma-separated: Player1,MineBot
       SPAWN_PROTECTION: "0"
       PLUGINS: |
         https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot
