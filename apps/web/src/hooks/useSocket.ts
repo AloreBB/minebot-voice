@@ -107,7 +107,8 @@ export function useSocket(token: string) {
     socket.on('bot:status', setBotStatus)
     socket.on('bot:inventory', setInventory)
     socket.on('bot:activity', (event) => {
-      setActivity(prev => [event, ...prev])
+      // Cap at 500 items in memory — older items can be re-fetched from the DB
+      setActivity(prev => [event, ...prev].slice(0, 500))
     })
     socket.on('command:response', setLastResponse)
 

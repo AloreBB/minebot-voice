@@ -141,13 +141,17 @@ export function setupSocketBridge(io: TypedIO): {
         // Call Claude with memory tool + conversation history
         const response = await parseCommand(command.text, ctx, { memoryDir }, historyContext)
 
-        // Save this interaction to DB
-        saveConversation(db, {
-          player: 'Player',
-          command: command.text,
-          understood: response.understood,
-          actions: response.actions,
-        })
+        // Save this interaction to DB (non-critical — don't let DB failure break execution)
+        try {
+          saveConversation(db, {
+            player: 'Player',
+            command: command.text,
+            understood: response.understood,
+            actions: response.actions,
+          })
+        } catch (err) {
+          console.error('[Socket] Failed to save conversation:', err)
+        }
 
         // Send Claude's interpretation back to all clients
         io.emit('command:response', response)

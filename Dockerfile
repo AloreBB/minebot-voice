@@ -37,8 +37,8 @@ COPY --from=builder /app/packages/shared/package.json packages/shared/
 # Install production deps only
 RUN yarn install --frozen-lockfile --production
 
-# Clean up build deps to reduce image size
-RUN apk del python3 make g++
+# Clean up build deps but keep libstdc++ (needed by better-sqlite3 at runtime)
+RUN apk del python3 make g++ && apk add --no-cache libstdc++
 
 # Copy built outputs
 COPY --from=builder /app/apps/bot/dist apps/bot/dist/
