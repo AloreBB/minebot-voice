@@ -351,6 +351,7 @@ async function parseCommandOpenAI(
     if (choice.finish_reason === 'tool_calls' && msg.tool_calls?.length) {
       messages.push(msg)
       for (const toolCall of msg.tool_calls) {
+        if (toolCall.type !== 'function') continue
         const args = JSON.parse(toolCall.function.arguments) as {
           action: string; key?: string; value?: string
         }
