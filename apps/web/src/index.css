@@ -140,3 +140,62 @@ body {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
+
+/* Minecraft tooltip */
+.mc-tooltip {
+  visibility: hidden;
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #100010ee;
+  border: 1px solid #2d0a31;
+  color: var(--mc-text);
+  font-family: var(--font-terminal);
+  font-size: 0.85rem;
+  padding: 4px 8px;
+  white-space: nowrap;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.mc-slot:hover .mc-tooltip {
+  visibility: visible;
+}
+
+/* Inventory slot */
+.mc-slot {
+  position: relative;
+}
+
+.mc-slot img {
+  image-rendering: pixelated;
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
+}
+
+.mc-slot-count {
+  position: absolute;
+  bottom: 1px;
+  right: 3px;
+  font-family: var(--font-pixel);
+  font-size: 0.35rem;
+  color: var(--mc-text);
+  text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  z-index: 1;
+  pointer-events: none;
+  line-height: 1;
+}
+
+.mc-slot-fallback {
+  width: 80%;
+  height: 80%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--mc-panel-light);
+  font-family: var(--font-pixel);
+  font-size: 0.5rem;
+  color: var(--mc-text-dim);
+}
