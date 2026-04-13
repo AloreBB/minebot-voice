@@ -9,6 +9,7 @@ import type { ServerToClientEvents, ClientToServerEvents } from '@minebot/shared
 import { authRouter, verifyToken } from './auth.js'
 import { createBot } from './bot/index.js'
 import { setupSocketBridge } from './socket/events.js'
+import { getDb } from './db/index.js'
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
@@ -40,6 +41,8 @@ const loginLimiter = rateLimit({
 
 app.use('/api/login', loginLimiter)
 app.use(authRouter())
+
+getDb() // Initialize database on startup
 
 // Serve frontend static files in production
 const __dirname = dirname(fileURLToPath(import.meta.url))

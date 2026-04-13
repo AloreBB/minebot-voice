@@ -14,6 +14,8 @@ import { parseCommand } from '../ai/command-parser.js'
 import { executeActions, type ActivityLogger } from '../bot/actions.js'
 import { runBehavior, canStartBehavior, isBehaviorRunning, stopCurrentBehavior } from '../bot/behaviors.js'
 import { getBot } from '../bot/index.js'
+import { getDb } from '../db/index.js'
+import { saveConversation, getRecentHistory, formatHistoryForPrompt } from '../db/history.js'
 
 type TypedIO = Server<ClientToServerEvents, ServerToClientEvents>
 
@@ -118,8 +120,23 @@ export function setupSocketBridge(io: TypedIO): {
       }
 
       try {
-        // Call Claude to parse the natural-language command
-        const response = await parseCommand(command.text, ctx)
+        // Load recent conversation history from DB
+        const db = getDb()
+        const recentRows = getRecentHistory(db, 10)
+        const historyContext = formatHistoryForPrompt(recentRows)
+
+        const memoryDir = process.env.MEMORY_DIR ?? './data/memories'
+
+        // Call Claude with memory tool + conversation history
+        const response = await parseCommand(command.text, ctx, { memoryDir }, historyContext)
+
+        // Save this interaction to DB
+        saveConversation(db, {
+          player: 'Player',
+          command: command.text,
+          understood: response.understood,
+          actions: response.actions,
+        })
 
         // Send Claude's interpretation back to all clients
         io.emit('command:response', response)
