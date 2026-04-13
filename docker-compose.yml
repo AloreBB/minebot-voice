@@ -16,11 +16,11 @@ services:
     networks:
       - dokploy-network
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "1.0"
+    # deploy:                # Optional: uncomment to limit resources
+    #   resources:
+    #     limits:
+    #       memory: 1G
+    #       cpus: "2.0"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health"]
       interval: 30s
