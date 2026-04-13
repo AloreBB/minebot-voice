@@ -1,2 +1,3 @@
-# Generated files
-src/generated/
+# Generated files (except textures.json which is committed)
+src/generated/*
+!src/generated/textures.json
