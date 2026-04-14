@@ -17,3 +17,11 @@ export const activityEvents = sqliteTable('activity_events', {
   message: text('message').notNull(),
   timestamp: integer('timestamp').notNull(), // Unix ms
 })
+
+// TODO(multi-bot): cuando soportemos varios bots, esta tabla pasa a tener
+// múltiples filas con columnas: name, host, port, username.
+export const botConfig = sqliteTable('bot_config', {
+  id: integer('id').primaryKey(),                  // singleton: siempre 1
+  desiredState: text('desired_state').notNull(),   // 'connected' | 'disconnected'
+  updatedAt: integer('updated_at').notNull(),      // unix ms
+})
