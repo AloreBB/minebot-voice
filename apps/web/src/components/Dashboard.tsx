@@ -7,6 +7,7 @@ import { ActivityFeed } from './ActivityFeed'
 import { VoiceButton } from './VoiceButton'
 import { CommandDisplay } from './CommandDisplay'
 import { TextCommandInput } from './TextCommandInput'
+import { BotControlButton } from './BotControlButton'
 
 interface Props {
   token: string
@@ -14,7 +15,7 @@ interface Props {
 }
 
 export function Dashboard({ token, onLogout }: Props) {
-  const { connected, botStatus, stats, inventory, activity, lastResponse, sendCommand, loadMoreActivity, hasMoreActivity, loadingActivity } = useSocket(token)
+  const { connected, botStatus, stats, inventory, activity, lastResponse, sendCommand, connectBot, disconnectBot, loadMoreActivity, hasMoreActivity, loadingActivity } = useSocket(token)
   const { state: voiceState, transcript, error: voiceError, startListening, stopListening, isSupported } = useVoiceRecognition(sendCommand)
 
   const pointerDownTimeRef = useRef(0)
@@ -85,14 +86,11 @@ export function Dashboard({ token, onLogout }: Props) {
           }}>
             MINEBOT
           </h1>
-          <span style={{
-            width: '8px',
-            height: '8px',
-            background: connected ? 'var(--mc-success)' : 'var(--mc-danger)',
-            display: 'inline-block',
-            imageRendering: 'pixelated',
-            boxShadow: connected ? '0 0 6px rgba(85,255,85,0.5)' : 'none',
-          }} />
+          <BotControlButton
+            status={botStatus}
+            onConnect={connectBot}
+            onDisconnect={disconnectBot}
+          />
         </div>
         <button onClick={onLogout} className="mc-btn" style={{ fontSize: '0.4rem', padding: '0.4rem 0.8rem' }}>
           SALIR
