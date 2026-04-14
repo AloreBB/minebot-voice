@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit'
 import helmet from 'helmet'
 import type { ServerToClientEvents, ClientToServerEvents } from '@minebot/shared'
 import { authRouter, verifyToken } from './auth.js'
-import { createBot } from './bot/index.js'
+import { connectBot } from './bot/index.js'
 import { setupSocketBridge } from './socket/events.js'
 import { getDb } from './db/index.js'
 import { getRecentActivity, getActivityBefore } from './db/activity.js'
@@ -95,7 +95,7 @@ server.listen(PORT, () => {
   const port = Number(process.env.MINECRAFT_PORT) || 25565
   const username = process.env.BOT_USERNAME ?? 'MineBot'
 
-  const bot = createBot({ host, port, username })
+  const bot = connectBot({ host, port, username })
 
   // Once the bot has a physical presence in the world, start stat intervals
   bot.on('spawn', () => {

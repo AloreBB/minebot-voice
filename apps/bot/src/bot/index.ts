@@ -7,19 +7,33 @@ export interface BotConfig {
   username: string
 }
 
+// TODO(multi-bot): reemplazar por un mapa indexado por botId.
 let bot: Bot | null = null
+let savedConfig: BotConfig | null = null
+let manualDisconnect = false
+
+const RESISTANCE_APPLY_DELAY_MS = 1500
+const AUTO_RECONNECT_DELAY_MS = 5000
 
 export function getBot(): Bot | null {
   return bot
 }
 
-export function createBot(config: BotConfig): Bot {
+export function getBotConfig(): BotConfig | null {
+  return savedConfig
+}
+
+export function connectBot(config: BotConfig): Bot {
   if (bot) {
+    manualDisconnect = true
     bot.quit()
     bot = null
   }
 
   console.log(`[Bot] Connecting as ${config.username} to ${config.host}:${config.port}`)
+
+  savedConfig = config
+  manualDisconnect = false
 
   bot = mineflayer.createBot({
     host: config.host,
@@ -29,45 +43,70 @@ export function createBot(config: BotConfig): Bot {
   })
 
   loadPlugins(bot)
+  attachLifecycleLogs(bot)
+  attachReconnectHandler(bot)
 
-  bot.on('login', () => {
+  return bot
+}
+
+export function disconnectBot(): void {
+  if (!bot) return
+
+  console.log('[Bot] Manual disconnect requested')
+  manualDisconnect = true
+  bot.quit()
+  bot = null
+}
+
+function attachLifecycleLogs(currentBot: Bot): void {
+  currentBot.on('login', () => {
     console.log('[Bot] Logged in successfully')
   })
 
-  bot.on('spawn', () => {
+  currentBot.on('spawn', () => {
     console.log('[Bot] Spawned in world')
-    // Apply Resistance 255 (immunity) after a short delay to ensure the bot is fully loaded
-    setTimeout(() => {
-      try {
-        bot?.chat('/effect give @s minecraft:resistance infinite 255 true')
-        console.log('[Bot] Applied resistance immunity')
-      } catch (err: any) {
-        console.error('[Bot] Could not apply resistance effect:', err?.message ?? String(err))
-      }
-    }, 1500)
+    setTimeout(() => applyResistanceEffect(currentBot), RESISTANCE_APPLY_DELAY_MS)
   })
 
-  bot.on('death', () => {
+  currentBot.on('death', () => {
     console.log('[Bot] Died, will respawn')
   })
 
-  bot.on('kicked', (reason) => {
+  currentBot.on('kicked', (reason) => {
     console.log(`[Bot] Kicked: ${reason}`)
   })
 
-  bot.on('error', (err) => {
+  currentBot.on('error', (err) => {
     console.error('[Bot] Error:', err.message)
   })
+}
 
-  bot.on('end', (reason) => {
+function attachReconnectHandler(currentBot: Bot): void {
+  currentBot.on('end', (reason) => {
     console.log(`[Bot] Disconnected: ${reason}`)
     bot = null
 
-    setTimeout(() => {
-      console.log('[Bot] Attempting reconnection...')
-      createBot(config)
-    }, 5000)
-  })
+    if (manualDisconnect) {
+      console.log('[Bot] Manual disconnect — skipping auto-reconnect')
+      return
+    }
 
-  return bot
+    if (!savedConfig) {
+      console.log('[Bot] No saved config — skipping auto-reconnect')
+      return
+    }
+
+    console.log(`[Bot] Auto-reconnecting in ${AUTO_RECONNECT_DELAY_MS}ms...`)
+    setTimeout(() => connectBot(savedConfig!), AUTO_RECONNECT_DELAY_MS)
+  })
+}
+
+function applyResistanceEffect(currentBot: Bot): void {
+  try {
+    currentBot.chat('/effect give @s minecraft:resistance infinite 255 true')
+    console.log('[Bot] Applied resistance immunity')
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[Bot] Could not apply resistance effect:', msg)
+  }
 }
