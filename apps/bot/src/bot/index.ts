@@ -11,6 +11,7 @@ export interface BotConfig {
 let bot: Bot | null = null
 let savedConfig: BotConfig | null = null
 let manualDisconnect = false
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
 const RESISTANCE_APPLY_DELAY_MS = 1500
 const AUTO_RECONNECT_DELAY_MS = 5000
@@ -24,6 +25,8 @@ export function getBotConfig(): BotConfig | null {
 }
 
 export function connectBot(config: BotConfig): Bot {
+  cancelPendingReconnect()
+
   if (bot) {
     replaceExistingBot(bot)
     bot = null
@@ -49,12 +52,25 @@ export function connectBot(config: BotConfig): Bot {
 }
 
 export function disconnectBot(): void {
-  if (!bot) return
+  cancelPendingReconnect()
+
+  if (!bot) {
+    // No active bot, but mark intent in case a reconnect fires before us.
+    manualDisconnect = true
+    return
+  }
 
   console.log('[Bot] Manual disconnect requested')
   manualDisconnect = true
   safeQuit(bot)
   bot = null
+}
+
+function cancelPendingReconnect(): void {
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
 }
 
 // Detach our reconnect handler first so an already-torn-down bot (e.g. mid-kick)
@@ -117,7 +133,14 @@ function attachReconnectHandler(currentBot: Bot): void {
     }
 
     console.log(`[Bot] Auto-reconnecting in ${AUTO_RECONNECT_DELAY_MS}ms...`)
-    setTimeout(() => connectBot(savedConfig!), AUTO_RECONNECT_DELAY_MS)
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null
+      if (manualDisconnect) {
+        console.log('[Bot] Pending reconnect aborted — manual disconnect in effect')
+        return
+      }
+      connectBot(savedConfig!)
+    }, AUTO_RECONNECT_DELAY_MS)
   })
 }
 

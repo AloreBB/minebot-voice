@@ -121,6 +121,22 @@ describe('bot runtime', () => {
     expect(getBot()).toBe(fake2)
   })
 
+  it('disconnectBot cancels a pending reconnect scheduled by a prior end event', () => {
+    const fake = makeFakeBot()
+    createBotMock.mockReturnValue(fake)
+    connectBot({ host: 'localhost', port: 25565, username: 'TestBot' })
+
+    // Simulate network drop — schedules a 5s reconnect
+    fake.emit('end', 'network error')
+
+    // User disconnects before the reconnect fires
+    createBotMock.mockClear()
+    disconnectBot()
+
+    vi.advanceTimersByTime(10000)
+    expect(createBotMock).not.toHaveBeenCalled()
+  })
+
   it('swallows errors thrown by a misbehaving bot.quit() during replacement', () => {
     const throwingBot = makeFakeBot()
     throwingBot.quit = vi.fn(() => {
