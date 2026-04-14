@@ -5,3 +5,6 @@ dist/
 .turbo/
 data/
 docs/superpowers/
+
+.playwright-mcp
+*.tsbuildinfo
