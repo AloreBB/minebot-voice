@@ -11,6 +11,7 @@ import { connectBot } from './bot/index.js'
 import { setupSocketBridge } from './socket/events.js'
 import { getDb } from './db/index.js'
 import { getRecentActivity, getActivityBefore } from './db/activity.js'
+import { getDesiredState } from './db/bot-config.js'
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
@@ -83,21 +84,11 @@ io.use((socket, next) => {
 })
 
 // Wire up the socket ↔ bot event bridge
-const { startBotListeners, stopBotListeners } = setupSocketBridge(io, () => {})
+const { startBotListeners, stopBotListeners } = setupSocketBridge(io, wireBotLifecycleBroadcasts)
 
 const PORT = Number(process.env.PORT) || 3001
 
-server.listen(PORT, () => {
-  console.log(`MineBot server running on port ${PORT}`)
-
-  // Connect to Minecraft server
-  const host = process.env.MINECRAFT_HOST ?? 'localhost'
-  const port = Number(process.env.MINECRAFT_PORT) || 25565
-  const username = process.env.BOT_USERNAME ?? 'MineBot'
-
-  const bot = connectBot({ host, port, username })
-
-  // Once the bot has a physical presence in the world, start stat intervals
+function wireBotLifecycleBroadcasts(bot: ReturnType<typeof connectBot>): void {
   bot.on('spawn', () => {
     // stopBotListeners first in case of reconnection — avoids duplicate intervals
     stopBotListeners()
@@ -113,6 +104,26 @@ server.listen(PORT, () => {
     stopBotListeners()
     io.emit('bot:status', 'disconnected')
   })
+}
+
+server.listen(PORT, () => {
+  console.log(`MineBot server running on port ${PORT}`)
+
+  const host = process.env.MINECRAFT_HOST ?? 'localhost'
+  const port = Number(process.env.MINECRAFT_PORT) || 25565
+  const username = process.env.BOT_USERNAME ?? 'MineBot'
+  const config = { host, port, username }
+
+  // TODO(multi-bot): iterar todos los bots guardados, arrancando los que estan 'connected'.
+  const desired = getDesiredState(getDb())
+  if (desired === 'disconnected') {
+    console.log('[Bot] desiredState=disconnected at startup; waiting for user action')
+    io.emit('bot:status', 'disconnected')
+    return
+  }
+
+  const bot = connectBot(config)
+  wireBotLifecycleBroadcasts(bot)
 })
 
 export { app, server }
