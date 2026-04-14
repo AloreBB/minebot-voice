@@ -123,6 +123,14 @@ export function useSocket(token: string) {
     socketRef.current?.emit('voice:command', command)
   }, [])
 
+  const connectBot = useCallback(() => {
+    socketRef.current?.emit('bot:connect')
+  }, [])
+
+  const disconnectBot = useCallback(() => {
+    socketRef.current?.emit('bot:disconnect')
+  }, [])
+
   return {
     connected,
     botStatus,
@@ -131,6 +139,8 @@ export function useSocket(token: string) {
     activity,
     lastResponse,
     sendCommand,
+    connectBot,
+    disconnectBot,
     loadMoreActivity,
     hasMoreActivity,
     loadingActivity,
