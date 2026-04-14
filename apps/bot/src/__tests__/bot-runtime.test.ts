@@ -12,7 +12,7 @@ vi.mock('../bot/plugins.js', () => ({
 }))
 
 // Dynamic import so mocks apply
-const { connectBot, disconnectBot, getBot, getBotConfig } = await import('../bot/index.js')
+const { connectBot, disconnectBot, getBot, getBotConfig, setLifecycleWirer } = await import('../bot/index.js')
 
 interface FakeBot extends EventEmitter {
   quit: ReturnType<typeof vi.fn>
@@ -31,10 +31,12 @@ describe('bot runtime', () => {
     vi.useFakeTimers()
     createBotMock.mockReset()
     disconnectBot()
+    setLifecycleWirer(null)
   })
 
   afterEach(() => {
     vi.useRealTimers()
+    setLifecycleWirer(null)
   })
 
   it('connectBot creates a mineflayer bot and stores config', () => {
@@ -135,6 +137,38 @@ describe('bot runtime', () => {
 
     vi.advanceTimersByTime(10000)
     expect(createBotMock).not.toHaveBeenCalled()
+  })
+
+  it('calls the registered lifecycle wirer on auto-reconnect', () => {
+    const fake = makeFakeBot()
+    createBotMock.mockReturnValueOnce(fake)
+    connectBot({ host: 'localhost', port: 25565, username: 'TestBot' })
+
+    const wirer = vi.fn()
+    setLifecycleWirer(wirer)
+
+    const fake2 = makeFakeBot()
+    createBotMock.mockReturnValueOnce(fake2)
+    fake.emit('end', 'network error')
+
+    vi.advanceTimersByTime(5000)
+    expect(wirer).toHaveBeenCalledTimes(1)
+    expect(wirer).toHaveBeenCalledWith(fake2)
+  })
+
+  it('does NOT call the lifecycle wirer if the pending reconnect is cancelled', () => {
+    const fake = makeFakeBot()
+    createBotMock.mockReturnValue(fake)
+    connectBot({ host: 'localhost', port: 25565, username: 'TestBot' })
+
+    const wirer = vi.fn()
+    setLifecycleWirer(wirer)
+
+    fake.emit('end', 'network error')
+    disconnectBot() // cancels pending reconnect before it fires
+
+    vi.advanceTimersByTime(10000)
+    expect(wirer).not.toHaveBeenCalled()
   })
 
   it('swallows errors thrown by a misbehaving bot.quit() during replacement', () => {

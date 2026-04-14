@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit'
 import helmet from 'helmet'
 import type { ServerToClientEvents, ClientToServerEvents } from '@minebot/shared'
 import { authRouter, verifyToken } from './auth.js'
-import { connectBot } from './bot/index.js'
+import { connectBot, setLifecycleWirer } from './bot/index.js'
 import { setupSocketBridge } from './socket/events.js'
 import { getDb } from './db/index.js'
 import { getRecentActivity, getActivityBefore } from './db/activity.js'
@@ -85,6 +85,10 @@ io.use((socket, next) => {
 
 // Wire up the socket ↔ bot event bridge
 const { startBotListeners, stopBotListeners } = setupSocketBridge(io, wireBotLifecycleBroadcasts)
+
+// Auto-reconnect creates a fresh bot bypassing requestConnect; register the
+// wirer so that path re-attaches the spawn/end/kicked broadcasters too.
+setLifecycleWirer(wireBotLifecycleBroadcasts)
 
 const PORT = Number(process.env.PORT) || 3001
 

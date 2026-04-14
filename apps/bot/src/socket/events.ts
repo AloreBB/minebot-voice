@@ -115,12 +115,24 @@ export function setupSocketBridge(
 
     // TODO(multi-bot): recibir botId del payload y enrutarlo al bot correcto.
     socket.on('bot:connect', async () => {
-      const config = getBotConfig() ?? readBotConfigFromEnv()
-      await requestConnect(io, getDb(), config, wireLifecycle)
+      try {
+        const config = getBotConfig() ?? readBotConfigFromEnv()
+        await requestConnect(io, getDb(), config, wireLifecycle)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error('[Socket] bot:connect failed:', msg)
+        socket.emit('bot:activity', makeActivityEvent('danger', `No se pudo conectar: ${msg}`))
+      }
     })
 
     socket.on('bot:disconnect', async () => {
-      await requestDisconnect(io, getDb())
+      try {
+        await requestDisconnect(io, getDb())
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error('[Socket] bot:disconnect failed:', msg)
+        socket.emit('bot:activity', makeActivityEvent('danger', `No se pudo desconectar: ${msg}`))
+      }
     })
 
     // Handle incoming voice:command from any connected client

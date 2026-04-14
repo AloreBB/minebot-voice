@@ -12,6 +12,7 @@ let bot: Bot | null = null
 let savedConfig: BotConfig | null = null
 let manualDisconnect = false
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let lifecycleWirer: ((bot: Bot) => void) | null = null
 
 const RESISTANCE_APPLY_DELAY_MS = 1500
 const AUTO_RECONNECT_DELAY_MS = 5000
@@ -22,6 +23,13 @@ export function getBot(): Bot | null {
 
 export function getBotConfig(): BotConfig | null {
   return savedConfig
+}
+
+// Registered once at startup so auto-reconnect can re-attach lifecycle
+// broadcasters to the fresh bot instance (the reconnect path doesn't go
+// through bot-control's requestConnect, which wires lifecycle explicitly).
+export function setLifecycleWirer(fn: ((bot: Bot) => void) | null): void {
+  lifecycleWirer = fn
 }
 
 export function connectBot(config: BotConfig): Bot {
@@ -139,7 +147,8 @@ function attachReconnectHandler(currentBot: Bot): void {
         console.log('[Bot] Pending reconnect aborted — manual disconnect in effect')
         return
       }
-      connectBot(savedConfig!)
+      const newBot = connectBot(savedConfig!)
+      lifecycleWirer?.(newBot)
     }, AUTO_RECONNECT_DELAY_MS)
   })
 }

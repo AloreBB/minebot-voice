@@ -85,6 +85,44 @@ describe('bot-control', () => {
 
       expect(wireLifecycle).toHaveBeenCalledWith(fakeBot)
     })
+
+    it('rolls back desiredState and emits disconnected when connectBot throws', async () => {
+      setDesiredState(db, 'disconnected')
+      connectBotMock.mockImplementation(() => {
+        throw new Error('DNS failure')
+      })
+      const io = makeFakeIo()
+
+      await expect(
+        requestConnect(io as any, db, { host: 'bad-host', port: 25565, username: 'T' }),
+      ).rejects.toThrow('DNS failure')
+
+      expect(getDesiredState(db)).toBe('disconnected')
+      expect(io.emit).toHaveBeenCalledWith('bot:status', 'connecting')
+      expect(io.emit).toHaveBeenCalledWith('bot:status', 'disconnected')
+    })
+
+    it('rolls back desiredState when wireLifecycle throws after connect', async () => {
+      setDesiredState(db, 'disconnected')
+      const fakeBot = { on: vi.fn() }
+      connectBotMock.mockReturnValue(fakeBot)
+      const wireLifecycle = vi.fn(() => {
+        throw new Error('wire failure')
+      })
+      const io = makeFakeIo()
+
+      await expect(
+        requestConnect(
+          io as any,
+          db,
+          { host: 'localhost', port: 25565, username: 'T' },
+          wireLifecycle,
+        ),
+      ).rejects.toThrow('wire failure')
+
+      expect(getDesiredState(db)).toBe('disconnected')
+      expect(io.emit).toHaveBeenCalledWith('bot:status', 'disconnected')
+    })
   })
 
   describe('requestDisconnect', () => {

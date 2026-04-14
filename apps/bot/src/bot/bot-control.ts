@@ -24,8 +24,20 @@ export async function requestConnect(
 
   io.emit('bot:status', 'connecting')
   setDesiredState(db, 'connected')
-  const bot = connectBot(config)
-  wireLifecycle?.(bot)
+  try {
+    const bot = connectBot(config)
+    wireLifecycle?.(bot)
+  } catch (err) {
+    // Roll back so the UI isn't stuck on 'connecting' and persisted state
+    // doesn't claim "connected" when no bot actually started.
+    try {
+      setDesiredState(db, 'disconnected')
+    } catch (rollbackErr) {
+      console.error('[bot-control] Failed to roll back desiredState:', rollbackErr)
+    }
+    io.emit('bot:status', 'disconnected')
+    throw err
+  }
 }
 
 export async function requestDisconnect(io: TypedIO, db: Db): Promise<void> {
