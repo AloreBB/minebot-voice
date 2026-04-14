@@ -83,7 +83,7 @@ io.use((socket, next) => {
 })
 
 // Wire up the socket ↔ bot event bridge
-const { startBotListeners, stopBotListeners } = setupSocketBridge(io)
+const { startBotListeners, stopBotListeners } = setupSocketBridge(io, () => {})
 
 const PORT = Number(process.env.PORT) || 3001
 
