@@ -106,4 +106,33 @@ describe('bot runtime', () => {
     vi.advanceTimersByTime(10000)
     expect(createBotMock).not.toHaveBeenCalled()
   })
+
+  it('replacing a torn-down bot without .quit() does not crash', () => {
+    const brokenBot = new EventEmitter() as FakeBot
+    // no .quit assigned — simulates a mineflayer bot whose internals were torn down
+    brokenBot.chat = vi.fn()
+    const fake2 = makeFakeBot()
+    createBotMock.mockReturnValueOnce(brokenBot).mockReturnValueOnce(fake2)
+
+    connectBot({ host: 'localhost', port: 25565, username: 'Broken' })
+    expect(() =>
+      connectBot({ host: 'localhost', port: 25565, username: 'Fresh' }),
+    ).not.toThrow()
+    expect(getBot()).toBe(fake2)
+  })
+
+  it('swallows errors thrown by a misbehaving bot.quit() during replacement', () => {
+    const throwingBot = makeFakeBot()
+    throwingBot.quit = vi.fn(() => {
+      throw new Error('socket already closed')
+    })
+    const fake2 = makeFakeBot()
+    createBotMock.mockReturnValueOnce(throwingBot).mockReturnValueOnce(fake2)
+
+    connectBot({ host: 'localhost', port: 25565, username: 'Throwing' })
+    expect(() =>
+      connectBot({ host: 'localhost', port: 25565, username: 'Fresh' }),
+    ).not.toThrow()
+    expect(getBot()).toBe(fake2)
+  })
 })

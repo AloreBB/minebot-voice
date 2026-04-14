@@ -25,8 +25,7 @@ export function getBotConfig(): BotConfig | null {
 
 export function connectBot(config: BotConfig): Bot {
   if (bot) {
-    manualDisconnect = true
-    bot.quit()
+    replaceExistingBot(bot)
     bot = null
   }
 
@@ -54,8 +53,29 @@ export function disconnectBot(): void {
 
   console.log('[Bot] Manual disconnect requested')
   manualDisconnect = true
-  bot.quit()
+  safeQuit(bot)
   bot = null
+}
+
+// Detach our reconnect handler first so an already-torn-down bot (e.g. mid-kick)
+// can't schedule a stale reconnect. Then attempt quit defensively.
+function replaceExistingBot(oldBot: Bot): void {
+  try {
+    oldBot.removeAllListeners('end')
+  } catch {
+    // EventEmitter methods shouldn't throw, but be defensive.
+  }
+  safeQuit(oldBot)
+}
+
+function safeQuit(target: Bot): void {
+  if (typeof target.quit !== 'function') return
+  try {
+    target.quit()
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[Bot] Error during quit:', msg)
+  }
 }
 
 function attachLifecycleLogs(currentBot: Bot): void {
