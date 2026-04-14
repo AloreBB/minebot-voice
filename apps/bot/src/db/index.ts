@@ -43,6 +43,14 @@ export function getDb() {
     )
   `)
 
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS bot_config (
+      id INTEGER PRIMARY KEY,
+      desired_state TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `)
+
   console.log('[DB] SQLite database initialized at', DB_PATH)
   return _db
 }

@@ -68,6 +68,9 @@ export interface ServerToClientEvents {
 
 export interface ClientToServerEvents {
   'voice:command': (command: VoiceCommand) => void
+  // TODO(multi-bot): estos eventos recibirán { botId: string } en el futuro
+  'bot:connect': () => void
+  'bot:disconnect': () => void
 }
 
 // Auth

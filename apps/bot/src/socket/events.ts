@@ -13,7 +13,8 @@ import { tick, setActiveCommand } from '../bot/state-machine.js'
 import { parseCommand } from '../ai/command-parser.js'
 import { executeActions, type ActivityLogger } from '../bot/actions.js'
 import { runBehavior, canStartBehavior, isBehaviorRunning, stopCurrentBehavior } from '../bot/behaviors.js'
-import { getBot } from '../bot/index.js'
+import { getBot, getBotConfig } from '../bot/index.js'
+import { requestConnect, requestDisconnect } from '../bot/bot-control.js'
 import { getDb } from '../db/index.js'
 import { saveConversation, getRecentHistory, formatHistoryForPrompt } from '../db/history.js'
 import { saveActivity } from '../db/activity.js'
@@ -71,7 +72,10 @@ function buildStats(bot: Bot, state: BotState): BotStats {
   }
 }
 
-export function setupSocketBridge(io: TypedIO): {
+export function setupSocketBridge(
+  io: TypedIO,
+  wireLifecycle: (bot: Bot) => void,
+): {
   startBotListeners: (bot: Bot) => void
   stopBotListeners: () => void
 } {
@@ -107,6 +111,28 @@ export function setupSocketBridge(io: TypedIO): {
     socket.on('disconnect', () => {
       commandTimestamps.delete(socket.id)
       console.log(`[Socket] Client disconnected: ${socket.id}`)
+    })
+
+    // TODO(multi-bot): recibir botId del payload y enrutarlo al bot correcto.
+    socket.on('bot:connect', async () => {
+      try {
+        const config = getBotConfig() ?? readBotConfigFromEnv()
+        await requestConnect(io, getDb(), config, wireLifecycle)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error('[Socket] bot:connect failed:', msg)
+        socket.emit('bot:activity', makeActivityEvent('danger', `No se pudo conectar: ${msg}`))
+      }
+    })
+
+    socket.on('bot:disconnect', async () => {
+      try {
+        await requestDisconnect(io, getDb())
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error('[Socket] bot:disconnect failed:', msg)
+        socket.emit('bot:activity', makeActivityEvent('danger', `No se pudo desconectar: ${msg}`))
+      }
     })
 
     // Handle incoming voice:command from any connected client
@@ -305,4 +331,12 @@ export function setupSocketBridge(io: TypedIO): {
   }
 
   return { startBotListeners, stopBotListeners }
+}
+
+function readBotConfigFromEnv(): { host: string; port: number; username: string } {
+  return {
+    host: process.env.MINECRAFT_HOST ?? 'localhost',
+    port: Number(process.env.MINECRAFT_PORT) || 25565,
+    username: process.env.BOT_USERNAME ?? 'MineBot',
+  }
 }
