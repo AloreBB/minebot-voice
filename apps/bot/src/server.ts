@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit'
 import helmet from 'helmet'
 import type { ServerToClientEvents, ClientToServerEvents } from '@minebot/shared'
 import { authRouter, verifyToken } from './auth.js'
+import { createAIProvidersRouter } from './routes/ai-providers.js'
 import { connectBot, setLifecycleWirer } from './bot/index.js'
 import { setupSocketBridge } from './socket/events.js'
 import { getDb } from './db/index.js'
@@ -17,6 +18,15 @@ import { createConfigRouter } from './routes/config.js'
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
   : []
+
+if (!process.env.ENCRYPTION_MASTER_KEY) {
+  console.error(
+    'FATAL: ENCRYPTION_MASTER_KEY is required.\n' +
+    'Generate one with: openssl rand -hex 32\n' +
+    'Then add ENCRYPTION_MASTER_KEY=<value> to your .env file.'
+  )
+  process.exit(1)
+}
 
 const app = express()
 const server = createServer(app)
@@ -58,6 +68,18 @@ app.use((req, res, next) => {
 
 getDb() // Initialize database on startup
 app.use(createConfigRouter(getDb()))
+
+// AI providers routes — require Bearer token
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/ai-providers')) { next(); return }
+  const token = req.headers.authorization?.replace('Bearer ', '')
+  if (!token || !verifyToken(token)) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+  next()
+})
+app.use(createAIProvidersRouter(getDb()))
 
 // Paginated activity endpoint
 app.get('/api/activity', (req, res) => {
