@@ -1,6 +1,7 @@
 import { useRef, useCallback, useState } from 'react'
 import { useSocket } from '../hooks/useSocket'
 import { useVoiceRecognition } from '../hooks/useVoiceRecognition'
+import { useAIProviders } from '../hooks/useAIProviders.js'
 import { StatsPanel } from './StatsPanel'
 import { InventoryGrid } from './InventoryGrid'
 import { ActivityFeed } from './ActivityFeed'
@@ -9,6 +10,7 @@ import { CommandDisplay } from './CommandDisplay'
 import { TextCommandInput } from './TextCommandInput'
 import { BotControlButton } from './BotControlButton'
 import { ServerConfigPanel } from './ServerConfigPanel'
+import { AIProviderPanel } from './AIProviderPanel.js'
 
 interface Props {
   token: string
@@ -23,17 +25,21 @@ export function Dashboard({ token, onLogout }: Props) {
     serverConfig, saveServerConfig,
   } = useSocket(token)
   const { state: voiceState, transcript, error: voiceError, startListening, stopListening, isSupported } = useVoiceRecognition(sendCommand)
+  const {
+    providers, loading: providersLoading, activeProvider,
+    addProvider, updateProvider, activateProvider, deleteProvider,
+  } = useAIProviders(token)
+
+  const [showServerConfig, setShowServerConfig] = useState(false)
+  const [showAIConfig, setShowAIConfig] = useState(false)
 
   const pointerDownTimeRef = useRef(0)
   const longPressHandled = useRef(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout>>(null)
-  const [showConfig, setShowConfig] = useState(false)
 
-  // pointerDown: record time, start listening after 400ms (long press = push-to-talk)
   const handlePointerDown = useCallback(() => {
     pointerDownTimeRef.current = Date.now()
     longPressHandled.current = false
-    // If they hold for 400ms, start listening (push-to-talk mode)
     longPressTimer.current = setTimeout(() => {
       if (voiceState !== 'listening') {
         startListening()
@@ -41,7 +47,6 @@ export function Dashboard({ token, onLogout }: Props) {
     }, 400)
   }, [voiceState, startListening])
 
-  // pointerUp: if held > 400ms it was push-to-talk, stop listening
   const handlePointerUp = useCallback(() => {
     const held = Date.now() - pointerDownTimeRef.current
     if (held > 400 && voiceState === 'listening') {
@@ -50,16 +55,13 @@ export function Dashboard({ token, onLogout }: Props) {
     }
   }, [voiceState, stopListening])
 
-  // click: if it wasn't a long press, toggle listening
   const handleClick = useCallback(() => {
-    // Cancel the long press timer
     if (longPressTimer.current) clearTimeout(longPressTimer.current)
 
     if (longPressHandled.current) return
     const held = Date.now() - pointerDownTimeRef.current
-    if (held > 400) return // Long press, handled by pointerUp
+    if (held > 400) return
 
-    // Short click = toggle
     if (voiceState === 'listening') {
       stopListening()
     } else {
@@ -77,7 +79,6 @@ export function Dashboard({ token, onLogout }: Props) {
       padding: '0.75rem',
       gap: '0.5rem',
     }}>
-      {/* Header */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -98,14 +99,35 @@ export function Dashboard({ token, onLogout }: Props) {
             onConnect={connectBot}
             onDisconnect={disconnectBot}
           />
+          {activeProvider ? (
+            <span style={{
+              fontSize: '0.45rem', color: 'var(--mc-text-muted, #aaa)',
+              background: 'var(--mc-bg-dark)', border: '1px solid var(--mc-border)',
+              padding: '0.15rem 0.4rem', letterSpacing: '0.5px',
+            }}>
+              {activeProvider.model}
+            </span>
+          ) : (
+            <span style={{
+              fontSize: '0.45rem', color: 'var(--mc-warning, #ffaa00)',
+              border: '1px solid var(--mc-warning, #ffaa00)',
+              padding: '0.15rem 0.4rem', letterSpacing: '0.5px',
+            }}>
+              SIN PROVEEDOR IA
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <button
-            onClick={() => setShowConfig(v => !v)}
+            onClick={() => setShowServerConfig(v => !v)}
             className="mc-btn"
             style={{ fontSize: '0.4rem', padding: '0.4rem 0.8rem' }}
           >
-            {showConfig ? 'SERVIDOR ▴' : 'SERVIDOR ▾'}
+            {showServerConfig ? 'SERVIDOR ▴' : 'SERVIDOR ▾'}
+          </button>
+          <button className="mc-btn" onClick={() => setShowAIConfig(v => !v)}
+            style={{ fontSize: '0.4rem', padding: '0.4rem 0.8rem' }}>
+            {showAIConfig ? 'OCULTAR IA' : 'CONFIG IA'}
           </button>
           <button onClick={onLogout} className="mc-btn" style={{ fontSize: '0.4rem', padding: '0.4rem 0.8rem' }}>
             SALIR
@@ -113,16 +135,26 @@ export function Dashboard({ token, onLogout }: Props) {
         </div>
       </div>
 
-      {showConfig && (
+      {showServerConfig && (
         <ServerConfigPanel
           current={serverConfig}
           onSave={saveServerConfig}
         />
       )}
 
+      {showAIConfig && (
+        <AIProviderPanel
+          providers={providers}
+          loading={providersLoading}
+          onAdd={addProvider}
+          onActivate={activateProvider}
+          onDelete={deleteProvider}
+          onUpdate={updateProvider}
+        />
+      )}
+
       <StatsPanel stats={stats} botStatus={botStatus} />
 
-      {/* Command Section */}
       <div className="mc-panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         <div className="mc-title">Comandos</div>
         <TextCommandInput onSend={sendCommand} disabled={!connected} />
