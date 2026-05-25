@@ -47,9 +47,22 @@ export function getDb() {
     CREATE TABLE IF NOT EXISTS bot_config (
       id INTEGER PRIMARY KEY,
       desired_state TEXT NOT NULL,
-      updated_at INTEGER NOT NULL
+      updated_at INTEGER NOT NULL,
+      host TEXT,
+      port INTEGER,
+      username TEXT,
+      version TEXT
     )
   `).run()
+
+  // Migrate existing bot_config tables that predate the server-config columns
+  const botConfigCols = new Set(
+    (sqlite.prepare('PRAGMA table_info(bot_config)').all() as { name: string }[]).map(c => c.name)
+  )
+  if (!botConfigCols.has('host'))     sqlite.prepare('ALTER TABLE bot_config ADD COLUMN host TEXT').run()
+  if (!botConfigCols.has('port'))     sqlite.prepare('ALTER TABLE bot_config ADD COLUMN port INTEGER').run()
+  if (!botConfigCols.has('username')) sqlite.prepare('ALTER TABLE bot_config ADD COLUMN username TEXT').run()
+  if (!botConfigCols.has('version'))  sqlite.prepare('ALTER TABLE bot_config ADD COLUMN version TEXT').run()
 
   sqlite.prepare(`
     CREATE TABLE IF NOT EXISTS ai_providers (
