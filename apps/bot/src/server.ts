@@ -11,7 +11,8 @@ import { connectBot, setLifecycleWirer } from './bot/index.js'
 import { setupSocketBridge } from './socket/events.js'
 import { getDb } from './db/index.js'
 import { getRecentActivity, getActivityBefore } from './db/activity.js'
-import { getDesiredState } from './db/bot-config.js'
+import { getDesiredState, getServerConfig } from './db/bot-config.js'
+import { createConfigRouter } from './routes/config.js'
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
@@ -44,7 +45,19 @@ const loginLimiter = rateLimit({
 app.use('/api/login', loginLimiter)
 app.use(authRouter())
 
+// Config routes — require Bearer token
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/config')) { next(); return }
+  const token = req.headers.authorization?.replace('Bearer ', '')
+  if (!token || !verifyToken(token)) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+  next()
+})
+
 getDb() // Initialize database on startup
+app.use(createConfigRouter(getDb()))
 
 // Paginated activity endpoint
 app.get('/api/activity', (req, res) => {
@@ -113,13 +126,15 @@ function wireBotLifecycleBroadcasts(bot: ReturnType<typeof connectBot>): void {
 server.listen(PORT, () => {
   console.log(`MineBot server running on port ${PORT}`)
 
-  const host = process.env.MINECRAFT_HOST ?? 'localhost'
-  const port = Number(process.env.MINECRAFT_PORT) || 25565
-  const username = process.env.BOT_USERNAME ?? 'MineBot'
-  const config = { host, port, username }
+  const db = getDb()
+  const dbConfig = getServerConfig(db)
+  const config = dbConfig ?? {
+    host: process.env.MINECRAFT_HOST ?? 'localhost',
+    port: Number(process.env.MINECRAFT_PORT) || 25565,
+    username: process.env.BOT_USERNAME ?? 'MineBot',
+  }
 
-  // TODO(multi-bot): iterar todos los bots guardados, arrancando los que estan 'connected'.
-  const desired = getDesiredState(getDb())
+  const desired = getDesiredState(db)
   if (desired === 'disconnected') {
     console.log('[Bot] desiredState=disconnected at startup; waiting for user action')
     io.emit('bot:status', 'disconnected')
