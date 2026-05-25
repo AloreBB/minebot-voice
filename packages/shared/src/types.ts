@@ -88,3 +88,24 @@ export interface ServerConfig {
   username: string
   version?: string
 }
+
+export type AIProviderType =
+  | 'anthropic'
+  | 'openai'
+  | 'deepseek'
+  | 'minimax'
+  | 'glm'
+  | 'groq'
+  | 'custom'
+
+export interface AIProvider {
+  id: number
+  providerType: AIProviderType
+  displayName: string
+  maskedKey: string
+  baseUrl: string | null
+  model: string
+  isActive: boolean
+  createdAt: number
+  lastUsedAt: number | null
+}
