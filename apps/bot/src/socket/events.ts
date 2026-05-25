@@ -16,6 +16,7 @@ import { runBehavior, canStartBehavior, isBehaviorRunning, stopCurrentBehavior }
 import { getBot, getBotConfig } from '../bot/index.js'
 import { requestConnect, requestDisconnect } from '../bot/bot-control.js'
 import { getDb } from '../db/index.js'
+import { getServerConfig } from '../db/bot-config.js'
 import { saveConversation, getRecentHistory, formatHistoryForPrompt } from '../db/history.js'
 import { saveActivity } from '../db/activity.js'
 
@@ -125,7 +126,7 @@ export function setupSocketBridge(
       botControlTimestamps.set(socket.id, now)
 
       try {
-        const config = getBotConfig() ?? readBotConfigFromEnv()
+        const config = getServerConfig(getDb()) ?? getBotConfig() ?? readBotConfigFromEnv()
         await requestConnect(io, getDb(), config, wireLifecycle)
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err)
