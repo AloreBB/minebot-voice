@@ -19,6 +19,7 @@ import { getDb } from '../db/index.js'
 import { getServerConfig } from '../db/bot-config.js'
 import { saveConversation, getRecentHistory, formatHistoryForPrompt } from '../db/history.js'
 import { saveActivity } from '../db/activity.js'
+import { getActiveProviderConfig, touchLastUsed, type ActiveProviderConfig } from '../db/ai-providers.js'
 
 type TypedIO = Server<ClientToServerEvents, ServerToClientEvents>
 
@@ -199,18 +200,27 @@ export function setupSocketBridge(
         isRaining: bot.isRaining,
       }
 
+      let providerConfig: ActiveProviderConfig | null = null
       try {
-        // Load recent conversation history from DB
         const db = getDb()
         const recentRows = getRecentHistory(db, 10)
         const historyContext = formatHistoryForPrompt(recentRows)
-
         const memoryDir = process.env.MEMORY_DIR ?? './data/memories'
 
-        // Call Claude with memory tool + conversation history
-        const response = await parseCommand(command.text, ctx, { memoryDir }, historyContext)
+        providerConfig = getActiveProviderConfig(db)
+        if (!providerConfig) {
+          io.emit('command:response', {
+            understood: 'No hay proveedor de IA configurado. Ve al panel de Proveedores en el dashboard.',
+            actions: [],
+          })
+          setActiveCommand(false)
+          return
+        }
 
-        // Save this interaction to DB (non-critical — don't let DB failure break execution)
+        const response = await parseCommand(command.text, ctx, { memoryDir, providerConfig }, historyContext)
+
+        touchLastUsed(db, providerConfig.id)
+
         try {
           saveConversation(db, {
             player: 'Player',
@@ -222,24 +232,28 @@ export function setupSocketBridge(
           console.error('[Socket] Failed to save conversation:', err)
         }
 
-        // Send Claude's interpretation back to all clients
         io.emit('command:response', response)
+        io.emit('bot:activity', makeActivityEvent('info', `Understood: ${response.understood}`))
 
-        // Log Claude's understood message
-        const understood = makeActivityEvent('info', `Understood: ${response.understood}`)
-        io.emit('bot:activity', understood)
-
-        // Execute the actions sequentially
         const log: ActivityLogger = (type, message) => {
           io.emit('bot:activity', makeActivityEvent(type, message))
         }
         await executeActions(bot, response.actions, log)
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err)
-        console.error('[Socket] Error processing voice command:', msg)
-        io.emit('bot:activity', makeActivityEvent('info', `Error: ${msg}`))
+        const isAuthError = msg.includes('401')
+          || msg.toLowerCase().includes('authentication')
+          || msg.toLowerCase().includes('api key')
+        if (isAuthError && providerConfig) {
+          io.emit('command:response', {
+            understood: `La API key de ${providerConfig.displayName} expiró o fue revocada. Actualizala en el panel de Proveedores.`,
+            actions: [],
+          })
+        } else {
+          console.error('[Socket] Error processing voice command:', msg)
+          io.emit('bot:activity', makeActivityEvent('info', `Error: ${msg}`))
+        }
       } finally {
-        // Always clear the active-command flag when done
         setActiveCommand(false)
       }
     })
