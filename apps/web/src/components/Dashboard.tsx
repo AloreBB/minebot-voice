@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useState } from 'react'
 import { useSocket } from '../hooks/useSocket'
 import { useVoiceRecognition } from '../hooks/useVoiceRecognition'
 import { StatsPanel } from './StatsPanel'
@@ -8,6 +8,7 @@ import { VoiceButton } from './VoiceButton'
 import { CommandDisplay } from './CommandDisplay'
 import { TextCommandInput } from './TextCommandInput'
 import { BotControlButton } from './BotControlButton'
+import { ServerConfigPanel } from './ServerConfigPanel'
 
 interface Props {
   token: string
@@ -15,12 +16,18 @@ interface Props {
 }
 
 export function Dashboard({ token, onLogout }: Props) {
-  const { connected, botStatus, stats, inventory, activity, lastResponse, sendCommand, connectBot, disconnectBot, loadMoreActivity, hasMoreActivity, loadingActivity } = useSocket(token)
+  const {
+    connected, botStatus, stats, inventory, activity, lastResponse,
+    sendCommand, connectBot, disconnectBot,
+    loadMoreActivity, hasMoreActivity, loadingActivity,
+    serverConfig, saveServerConfig,
+  } = useSocket(token)
   const { state: voiceState, transcript, error: voiceError, startListening, stopListening, isSupported } = useVoiceRecognition(sendCommand)
 
   const pointerDownTimeRef = useRef(0)
   const longPressHandled = useRef(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout>>(null)
+  const [showConfig, setShowConfig] = useState(false)
 
   // pointerDown: record time, start listening after 400ms (long press = push-to-talk)
   const handlePointerDown = useCallback(() => {
@@ -92,10 +99,26 @@ export function Dashboard({ token, onLogout }: Props) {
             onDisconnect={disconnectBot}
           />
         </div>
-        <button onClick={onLogout} className="mc-btn" style={{ fontSize: '0.4rem', padding: '0.4rem 0.8rem' }}>
-          SALIR
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button
+            onClick={() => setShowConfig(v => !v)}
+            className="mc-btn"
+            style={{ fontSize: '0.4rem', padding: '0.4rem 0.8rem' }}
+          >
+            {showConfig ? 'SERVIDOR ▴' : 'SERVIDOR ▾'}
+          </button>
+          <button onClick={onLogout} className="mc-btn" style={{ fontSize: '0.4rem', padding: '0.4rem 0.8rem' }}>
+            SALIR
+          </button>
+        </div>
       </div>
+
+      {showConfig && (
+        <ServerConfigPanel
+          current={serverConfig}
+          onSave={saveServerConfig}
+        />
+      )}
 
       <StatsPanel stats={stats} botStatus={botStatus} />
 
