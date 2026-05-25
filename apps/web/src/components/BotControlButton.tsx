@@ -23,7 +23,6 @@ function resolveVisuals(status: BotStatus): Visuals {
     case 'dead':
       return { label: 'EXPULSAR', background: 'var(--mc-warning)', disabled: false, action: 'disconnect' }
     case 'disconnected':
-    default:
       return { label: 'AGREGAR', background: 'var(--mc-danger)', disabled: false, action: 'connect' }
   }
 }

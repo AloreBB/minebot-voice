@@ -18,10 +18,13 @@ services:
       VIEW_DISTANCE: "${MC_VIEW_DISTANCE:-10}"
       ONLINE_MODE: "false"
       ENFORCE_SECURE_PROFILE: "false"
+      ENABLE_RCON: "true"
+      RCON_PASSWORD: "${RCON_PASSWORD}"
       WHITELIST: "${MC_WHITELIST}"          # Comma-separated: Player1,Player2,MineBot
-      ENFORCE_WHITELIST: "TRUE"
+      ENFORCE_WHITELIST: "FALSE"
       OPS: "${MC_OPS}"                      # Comma-separated: Player1,MineBot
       SPAWN_PROTECTION: "0"
+      RCON_CMDS_STARTUP: "gamerule minecraft:keep_inventory true"
       PLUGINS: |
         https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot
         https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot

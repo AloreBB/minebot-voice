@@ -18,25 +18,16 @@ export function getDesiredState(db: Db): DesiredState {
     .get()
 
   if (!row) return 'connected'
-  return row.desiredState as DesiredState
+  const { desiredState } = row
+  if (desiredState === 'connected' || desiredState === 'disconnected') return desiredState
+  console.warn(`[bot-config] Unexpected desiredState value: "${desiredState}", defaulting to "connected"`)
+  return 'connected'
 }
 
 export function setDesiredState(db: Db, state: DesiredState): void {
   const now = Date.now()
-  const existing = db
-    .select()
-    .from(botConfig)
-    .where(eq(botConfig.id, SINGLETON_ID))
-    .get()
-
-  if (existing) {
-    db.update(botConfig)
-      .set({ desiredState: state, updatedAt: now })
-      .where(eq(botConfig.id, SINGLETON_ID))
-      .run()
-  } else {
-    db.insert(botConfig)
-      .values({ id: SINGLETON_ID, desiredState: state, updatedAt: now })
-      .run()
-  }
+  db.insert(botConfig)
+    .values({ id: SINGLETON_ID, desiredState: state, updatedAt: now })
+    .onConflictDoUpdate({ target: botConfig.id, set: { desiredState: state, updatedAt: now } })
+    .run()
 }

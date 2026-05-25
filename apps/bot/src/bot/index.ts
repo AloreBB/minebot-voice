@@ -81,11 +81,12 @@ function cancelPendingReconnect(): void {
   }
 }
 
-// Detach our reconnect handler first so an already-torn-down bot (e.g. mid-kick)
-// can't schedule a stale reconnect. Then attempt quit defensively.
+// Strip all listeners before quitting so stale spawn/kicked/end callbacks
+// (registered by wireBotLifecycleBroadcasts or attachLifecycleLogs) can't fire
+// on this bot after the new one takes over.
 function replaceExistingBot(oldBot: Bot): void {
   try {
-    oldBot.removeAllListeners('end')
+    oldBot.removeAllListeners()
   } catch {
     // EventEmitter methods shouldn't throw, but be defensive.
   }

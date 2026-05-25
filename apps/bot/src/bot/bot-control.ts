@@ -52,7 +52,9 @@ export async function requestDisconnect(io: TypedIO, db: Db): Promise<void> {
 }
 
 function isAlreadyConnected(db: Db): boolean {
-  return getDesiredState(db) === 'connected' && getBot()?.entity != null
+  // Check bot existence (not entity) so mid-spawn bots are treated as connected
+  // and a double-click can't replace an already in-flight connection.
+  return getDesiredState(db) === 'connected' && getBot() != null
 }
 
 function isAlreadyDisconnected(db: Db): boolean {

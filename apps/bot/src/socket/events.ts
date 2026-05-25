@@ -94,6 +94,9 @@ export function setupSocketBridge(
   const COMMAND_COOLDOWN_MS = 3000
   const commandTimestamps = new Map<string, number>()
 
+  const BOT_CONTROL_COOLDOWN_MS = 2000
+  const botControlTimestamps = new Map<string, number>()
+
   // Wire up connection handler — runs for every client
   io.on('connection', (socket) => {
     console.log(`[Socket] Client connected: ${socket.id}`)
@@ -110,11 +113,17 @@ export function setupSocketBridge(
 
     socket.on('disconnect', () => {
       commandTimestamps.delete(socket.id)
+      botControlTimestamps.delete(socket.id)
       console.log(`[Socket] Client disconnected: ${socket.id}`)
     })
 
     // TODO(multi-bot): recibir botId del payload y enrutarlo al bot correcto.
     socket.on('bot:connect', async () => {
+      const now = Date.now()
+      const lastControl = botControlTimestamps.get(socket.id) ?? 0
+      if (now - lastControl < BOT_CONTROL_COOLDOWN_MS) return
+      botControlTimestamps.set(socket.id, now)
+
       try {
         const config = getBotConfig() ?? readBotConfigFromEnv()
         await requestConnect(io, getDb(), config, wireLifecycle)
@@ -126,6 +135,11 @@ export function setupSocketBridge(
     })
 
     socket.on('bot:disconnect', async () => {
+      const now = Date.now()
+      const lastControl = botControlTimestamps.get(socket.id) ?? 0
+      if (now - lastControl < BOT_CONTROL_COOLDOWN_MS) return
+      botControlTimestamps.set(socket.id, now)
+
       try {
         await requestDisconnect(io, getDb())
       } catch (err: unknown) {
@@ -322,7 +336,7 @@ export function setupSocketBridge(
       if (onDeath) currentBot.removeListener('death', onDeath)
       if (onSpawn) currentBot.removeListener('spawn', onSpawn)
       if (onEntityHurt) currentBot.removeListener('entityHurt', onEntityHurt)
-      if (onUpdateSlot) (currentBot.inventory as any).removeListener('updateSlot', onUpdateSlot)
+      if (onUpdateSlot) (currentBot.inventory as any)?.removeListener('updateSlot', onUpdateSlot)
     }
     onDeath = null
     onSpawn = null
