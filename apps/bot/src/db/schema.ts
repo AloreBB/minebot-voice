@@ -29,3 +29,16 @@ export const botConfig = sqliteTable('bot_config', {
   username: text('username'),                      // nullable
   version: text('version'),                        // nullable — mineflayer auto-detects
 })
+
+export const aiProviders = sqliteTable('ai_providers', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  providerType: text('provider_type').notNull(),
+  displayName: text('display_name').notNull(),
+  encryptedKey: text('encrypted_key').notNull(),
+  maskedKey: text('masked_key').notNull(),
+  baseUrl: text('base_url'),
+  model: text('model').notNull(),
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('created_at').notNull(),
+  lastUsedAt: integer('last_used_at'),
+})
