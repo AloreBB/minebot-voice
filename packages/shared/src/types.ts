@@ -81,3 +81,10 @@ export interface LoginRequest {
 export interface LoginResponse {
   token: string
 }
+
+export interface ServerConfig {
+  host: string
+  port: number
+  username: string
+  version?: string
+}
