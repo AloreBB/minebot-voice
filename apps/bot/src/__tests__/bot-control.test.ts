@@ -19,13 +19,17 @@ const { requestConnect, requestDisconnect } = await import('../bot/bot-control.j
 
 function createTestDb() {
   const sqlite = new Database(':memory:')
-  sqlite.exec(`
+  sqlite.prepare(`
     CREATE TABLE bot_config (
       id INTEGER PRIMARY KEY,
       desired_state TEXT NOT NULL,
-      updated_at INTEGER NOT NULL
+      updated_at INTEGER NOT NULL,
+      host TEXT,
+      port INTEGER,
+      username TEXT,
+      version TEXT
     )
-  `)
+  `).run()
   return drizzle(sqlite, { schema })
 }
 

@@ -5,6 +5,7 @@ export interface BotConfig {
   host: string
   port: number
   username: string
+  version?: string
 }
 
 // TODO(multi-bot): reemplazar por un mapa indexado por botId.
@@ -50,6 +51,7 @@ export function connectBot(config: BotConfig): Bot {
     port: config.port,
     username: config.username,
     auth: 'offline',
+    version: config.version,  // undefined = mineflayer auto-detects
   })
 
   loadPlugins(bot)
