@@ -21,7 +21,11 @@ export const activityEvents = sqliteTable('activity_events', {
 // TODO(multi-bot): cuando soportemos varios bots, esta tabla pasa a tener
 // múltiples filas con columnas: name, host, port, username.
 export const botConfig = sqliteTable('bot_config', {
-  id: integer('id').primaryKey(),                  // singleton: siempre 1
+  id: integer('id').primaryKey(),                  // singleton: always 1
   desiredState: text('desired_state').notNull(),   // 'connected' | 'disconnected'
   updatedAt: integer('updated_at').notNull(),      // unix ms
+  host: text('host'),                              // nullable — fallback to env
+  port: integer('port'),                           // nullable
+  username: text('username'),                      // nullable
+  version: text('version'),                        // nullable — mineflayer auto-detects
 })
