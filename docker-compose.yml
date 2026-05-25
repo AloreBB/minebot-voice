@@ -3,8 +3,7 @@ services:
     build: .
     container_name: minebot
     environment:
-      ANTHROPIC_BASE_URL: "${ANTHROPIC_BASE_URL}"
-      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+      ENCRYPTION_MASTER_KEY: "${ENCRYPTION_MASTER_KEY}"
       ACCESS_PASSWORD: "${ACCESS_PASSWORD}"
       JWT_SECRET: "${JWT_SECRET}"
       MINECRAFT_HOST: "${MINECRAFT_HOST:-minecraft}"
