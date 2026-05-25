@@ -4,21 +4,7 @@ import OpenAI from 'openai'
 import { promises as fs } from 'fs'
 import path from 'path'
 import type { CommandResponse, BotAction } from '@minebot/shared'
-
-// Provider selection via env: "openai" or "anthropic" (default)
-const AI_PROVIDER = process.env.AI_PROVIDER ?? 'anthropic'
-
-const anthropic = AI_PROVIDER === 'anthropic' ? new Anthropic() : null
-const openai = AI_PROVIDER === 'openai'
-  ? new OpenAI({
-      baseURL: process.env.OPENAI_BASE_URL,
-      apiKey: process.env.OPENAI_API_KEY,
-    })
-  : null
-
-const AI_MODEL = process.env.AI_MODEL ?? (
-  AI_PROVIDER === 'openai' ? 'MiniMax-M2.5' : 'claude-sonnet-4-20250514'
-)
+import type { ActiveProviderConfig } from '../db/ai-providers.js'
 
 export interface BotContext {
   health: number
@@ -175,6 +161,7 @@ export function parseResponse(raw: string): CommandResponse {
 
 export interface ParseCommandOptions {
   memoryDir: string
+  providerConfig: ActiveProviderConfig
 }
 
 const MEMORY_FILE = 'bot-memories.json'
@@ -277,12 +264,14 @@ async function handleMemoryTool(
 async function parseCommandAnthropic(
   prompt: string,
   memoryDir: string,
+  client: Anthropic,
+  model: string,
 ): Promise<CommandResponse> {
   const messages: MessageParam[] = [{ role: 'user', content: prompt }]
 
   for (let i = 0; i < 5; i++) {
-    const response = await anthropic!.messages.create({
-      model: AI_MODEL,
+    const response = await client.messages.create({
+      model,
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages,
@@ -323,6 +312,8 @@ async function parseCommandAnthropic(
 async function parseCommandOpenAI(
   prompt: string,
   memoryDir: string,
+  client: OpenAI,
+  model: string,
 ): Promise<CommandResponse> {
   const messages: OpenAI.ChatCompletionMessageParam[] = [
     { role: 'system', content: SYSTEM_PROMPT },
@@ -330,8 +321,8 @@ async function parseCommandOpenAI(
   ]
 
   for (let i = 0; i < 5; i++) {
-    const response = await openai!.chat.completions.create({
-      model: AI_MODEL,
+    const response = await client.chat.completions.create({
+      model,
       max_tokens: 1024,
       messages,
       tools: [openaiMemoryToolDef],
@@ -364,7 +355,6 @@ async function parseCommandOpenAI(
     const raw = msg.content ?? ''
     console.log('[AI] Raw response:', raw.slice(0, 300))
 
-    // response_format guarantees valid JSON matching our schema
     const parsed = JSON.parse(raw) as { understood: string; actions: BotAction[] }
     return { understood: parsed.understood, actions: parsed.actions }
   }
@@ -381,14 +371,21 @@ export async function parseCommand(
   historyContext?: string,
 ): Promise<CommandResponse> {
   const prompt = buildPrompt(command, ctx, historyContext)
+  const { providerConfig } = options
 
   try {
-    if (AI_PROVIDER === 'openai') {
-      return await parseCommandOpenAI(prompt, options.memoryDir)
+    if (providerConfig.providerType === 'anthropic') {
+      const client = new Anthropic({ apiKey: providerConfig.apiKey })
+      return await parseCommandAnthropic(prompt, options.memoryDir, client, providerConfig.model)
     }
-    return await parseCommandAnthropic(prompt, options.memoryDir)
+    const client = new OpenAI({ baseURL: providerConfig.baseUrl, apiKey: providerConfig.apiKey })
+    return await parseCommandOpenAI(prompt, options.memoryDir, client, providerConfig.model)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
+    if (msg.includes('401') || msg.toLowerCase().includes('authentication')
+      || msg.toLowerCase().includes('api key')) {
+      throw err
+    }
     console.error('[AI] API call failed:', msg)
     return {
       understood: `Error al contactar la IA: ${msg.slice(0, 100)}`,
