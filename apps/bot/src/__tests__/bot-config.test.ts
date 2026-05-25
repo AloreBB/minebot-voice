@@ -2,17 +2,21 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import * as schema from '../db/schema.js'
-import { getDesiredState, setDesiredState } from '../db/bot-config.js'
+import { getDesiredState, setDesiredState, getServerConfig, setServerConfig } from '../db/bot-config.js'
 
 function createTestDb() {
   const sqlite = new Database(':memory:')
-  sqlite.exec(`
+  sqlite.prepare(`
     CREATE TABLE bot_config (
       id INTEGER PRIMARY KEY,
       desired_state TEXT NOT NULL,
-      updated_at INTEGER NOT NULL
+      updated_at INTEGER NOT NULL,
+      host TEXT,
+      port INTEGER,
+      username TEXT,
+      version TEXT
     )
-  `)
+  `).run()
   return drizzle(sqlite, { schema })
 }
 
@@ -55,6 +59,51 @@ describe('bot-config', () => {
       setDesiredState(db, 'connected')
       const rows2 = db.select().from(schema.botConfig).all()
       expect(rows2[0].updatedAt).toBeGreaterThan(t1)
+    })
+  })
+
+  describe('getServerConfig', () => {
+    it('returns null when table is empty', () => {
+      expect(getServerConfig(db)).toBeNull()
+    })
+
+    it('returns null when row exists but host is null', () => {
+      setDesiredState(db, 'connected')
+      expect(getServerConfig(db)).toBeNull()
+    })
+
+    it('returns config after setServerConfig', () => {
+      setServerConfig(db, { host: 'mc.example.com', port: 25565, username: 'Bot' })
+      expect(getServerConfig(db)).toEqual({
+        host: 'mc.example.com',
+        port: 25565,
+        username: 'Bot',
+        version: undefined,
+      })
+    })
+
+    it('includes version when set', () => {
+      setServerConfig(db, { host: 'mc.example.com', port: 25565, username: 'Bot', version: '1.20.4' })
+      expect(getServerConfig(db)).toEqual({
+        host: 'mc.example.com',
+        port: 25565,
+        username: 'Bot',
+        version: '1.20.4',
+      })
+    })
+  })
+
+  describe('setServerConfig', () => {
+    it('does not overwrite desiredState on update', () => {
+      setDesiredState(db, 'disconnected')
+      setServerConfig(db, { host: 'a.com', port: 1234, username: 'X' })
+      expect(getDesiredState(db)).toBe('disconnected')
+    })
+
+    it('overwrites previous server config', () => {
+      setServerConfig(db, { host: 'a.com', port: 1, username: 'A' })
+      setServerConfig(db, { host: 'b.com', port: 2, username: 'B' })
+      expect(getServerConfig(db)).toMatchObject({ host: 'b.com', port: 2, username: 'B' })
     })
   })
 })

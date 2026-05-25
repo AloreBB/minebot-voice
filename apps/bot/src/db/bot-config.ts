@@ -31,3 +31,52 @@ export function setDesiredState(db: Db, state: DesiredState): void {
     .onConflictDoUpdate({ target: botConfig.id, set: { desiredState: state, updatedAt: now } })
     .run()
 }
+
+export interface ServerConfig {
+  host: string
+  port: number
+  username: string
+  version?: string
+}
+
+export function getServerConfig(db: Db): ServerConfig | null {
+  const row = db
+    .select()
+    .from(botConfig)
+    .where(eq(botConfig.id, SINGLETON_ID))
+    .get()
+
+  if (!row || !row.host || !row.port || !row.username) return null
+  return {
+    host: row.host,
+    port: row.port,
+    username: row.username,
+    version: row.version ?? undefined,
+  }
+}
+
+export function setServerConfig(db: Db, cfg: ServerConfig): void {
+  const now = Date.now()
+  db.insert(botConfig)
+    .values({
+      id: SINGLETON_ID,
+      desiredState: 'connected',  // default for new rows only
+      updatedAt: now,
+      host: cfg.host,
+      port: cfg.port,
+      username: cfg.username,
+      version: cfg.version ?? null,
+    })
+    .onConflictDoUpdate({
+      target: botConfig.id,
+      set: {
+        host: cfg.host,
+        port: cfg.port,
+        username: cfg.username,
+        version: cfg.version ?? null,
+        updatedAt: now,
+        // desiredState intentionally NOT updated — setDesiredState owns it
+      },
+    })
+    .run()
+}
