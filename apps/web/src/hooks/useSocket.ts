@@ -9,6 +9,7 @@ import type {
   BotStatus,
   CommandResponse,
   VoiceCommand,
+  ServerConfig,
 } from '@minebot/shared'
 
 type TypedSocket = Socket<ServerToClientEvents, ClientToServerEvents>
@@ -39,6 +40,7 @@ export function useSocket(token: string) {
   const [lastResponse, setLastResponse] = useState<CommandResponse | null>(null)
   const [hasMoreActivity, setHasMoreActivity] = useState(false)
   const [loadingActivity, setLoadingActivity] = useState(false)
+  const [serverConfig, setServerConfigState] = useState<ServerConfig | null>(null)
 
   // Track the oldest DB id we've loaded (for cursor pagination)
   const oldestIdRef = useRef<number | null>(null)
@@ -62,6 +64,35 @@ export function useSocket(token: string) {
     } catch (err) {
       console.error('[useSocket] Failed to load initial activity:', err)
     }
+  }, [token])
+
+  const loadServerConfig = useCallback(async () => {
+    try {
+      const res = await fetch('/api/config', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) return
+      const data = await res.json() as ServerConfig
+      setServerConfigState(data)
+    } catch (err) {
+      console.error('[useSocket] Failed to load server config:', err)
+    }
+  }, [token])
+
+  const saveServerConfig = useCallback(async (cfg: ServerConfig): Promise<void> => {
+    const res = await fetch('/api/config', {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(cfg),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+      throw new Error(body.error?.message ?? 'Error al guardar la configuración')
+    }
+    setServerConfigState(cfg)
   }, [token])
 
   // Load more (older) activity for infinite scroll
@@ -100,6 +131,7 @@ export function useSocket(token: string) {
     socket.on('connect', () => {
       setConnected(true)
       loadInitialActivity()
+      loadServerConfig()
     })
     socket.on('disconnect', () => setConnected(false))
 
@@ -116,7 +148,7 @@ export function useSocket(token: string) {
       socket.disconnect()
       socketRef.current = null
     }
-  }, [token, loadInitialActivity])
+  }, [token, loadInitialActivity, loadServerConfig])
 
   const sendCommand = useCallback((text: string) => {
     const command: VoiceCommand = { text, timestamp: Date.now() }
@@ -144,5 +176,7 @@ export function useSocket(token: string) {
     loadMoreActivity,
     hasMoreActivity,
     loadingActivity,
+    serverConfig,
+    saveServerConfig,
   }
 }
