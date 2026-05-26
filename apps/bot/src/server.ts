@@ -152,7 +152,7 @@ server.listen(PORT, () => {
   const dbConfig = getServerConfig(db)
 
   // No DB config and no explicit env var = fresh deployment; wait for user to configure via dashboard
-  if (!dbConfig && !process.env.MINECRAFT_HOST) {
+  if (!dbConfig && !process.env.MINECRAFT_HOST?.trim()) {
     console.log('[Bot] No server config found; waiting for user to configure via dashboard')
     io.emit('bot:status', 'disconnected')
     return
