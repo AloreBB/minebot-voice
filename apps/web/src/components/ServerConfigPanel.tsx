@@ -6,6 +6,20 @@ interface Props {
   onSave: (cfg: ServerConfig) => Promise<void>
 }
 
+const inputCss: React.CSSProperties = {
+  width: '100%', background: 'var(--mc-bg)',
+  border: '2px solid var(--mc-border-dark)',
+  color: 'var(--mc-text)', padding: '0.6rem 0.75rem',
+  fontFamily: 'var(--font-terminal)', fontSize: '1.3rem',
+  boxSizing: 'border-box', outline: 'none',
+}
+
+const labelCss: React.CSSProperties = {
+  fontFamily: 'var(--font-pixel)', fontSize: '0.45rem',
+  color: 'var(--mc-text-dim)', letterSpacing: '1px',
+  marginBottom: '0.4rem', display: 'block',
+}
+
 export function ServerConfigPanel({ current, onSave }: Props) {
   const [host, setHost] = useState('')
   const [port, setPort] = useState('25565')
@@ -42,91 +56,58 @@ export function ServerConfigPanel({ current, onSave }: Props) {
     }
   }
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    background: 'var(--mc-bg-dark)',
-    border: '2px solid var(--mc-border)',
-    color: 'var(--mc-text)',
-    padding: '0.4rem 0.5rem',
-    fontFamily: 'inherit',
-    fontSize: '0.65rem',
-    boxSizing: 'border-box',
-  }
-
-  const labelStyle: React.CSSProperties = {
-    fontSize: '0.5rem',
-    color: 'var(--mc-text-muted, #aaa)',
-    letterSpacing: '1px',
-    marginBottom: '0.2rem',
-    display: 'block',
-  }
-
   return (
-    <div className="mc-panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-      <div className="mc-title">SERVIDOR</div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 6rem', gap: '0.75rem' }}>
         <div>
-          <label style={labelStyle}>HOST</label>
-          <input
-            style={inputStyle}
-            value={host}
-            onChange={e => setHost(e.target.value)}
-            placeholder="mc.example.com"
-          />
+          <label style={labelCss}>HOST</label>
+          <input style={inputCss} value={host}
+            onChange={e => setHost(e.target.value)} placeholder="mc.example.com" />
         </div>
-        <div style={{ width: '5rem' }}>
-          <label style={labelStyle}>PUERTO</label>
-          <input
-            style={inputStyle}
-            value={port}
+        <div>
+          <label style={labelCss}>PUERTO</label>
+          <input style={inputCss} value={port}
             onChange={e => setPort(e.target.value)}
-            placeholder="25565"
-            type="number"
-            min={1}
-            max={65535}
-          />
+            placeholder="25565" type="number" min={1} max={65535} />
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
         <div>
-          <label style={labelStyle}>USUARIO</label>
-          <input
-            style={inputStyle}
-            value={username}
-            onChange={e => setUsername(e.target.value)}
-            placeholder="MineBot"
-            maxLength={16}
-          />
+          <label style={labelCss}>USUARIO DEL BOT</label>
+          <input style={inputCss} value={username}
+            onChange={e => setUsername(e.target.value)} placeholder="MineBot" maxLength={16} />
         </div>
         <div>
-          <label style={labelStyle}>VERSIÓN (opcional)</label>
-          <input
-            style={inputStyle}
-            value={version}
-            onChange={e => setVersion(e.target.value)}
-            placeholder="auto (ej: 1.20.4)"
-          />
+          <label style={labelCss}>VERSIÓN (opcional)</label>
+          <input style={inputCss} value={version}
+            onChange={e => setVersion(e.target.value)} placeholder="auto · ej: 1.20.4" />
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <button
-          className="mc-btn"
-          onClick={handleSave}
-          disabled={status === 'saving'}
-          style={{ fontSize: '0.5rem', padding: '0.4rem 1rem' }}
-        >
-          {status === 'saving' ? 'GUARDANDO...' : status === 'saved' ? 'GUARDADO ✓' : 'GUARDAR'}
+      {current && (
+        <div style={{
+          fontFamily: 'var(--font-terminal)', fontSize: '1.05rem',
+          color: 'var(--mc-text-dim)', padding: '0.5rem 0.75rem',
+          background: 'rgba(85,255,85,0.04)',
+          border: '1px solid var(--mc-border-dark)',
+        }}>
+          Actual: {current.host}:{current.port} · @{current.username}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <button className="mc-btn" onClick={handleSave} disabled={status === 'saving'}
+          style={{ fontFamily: 'var(--font-terminal)', fontSize: '1.2rem', padding: '0.6rem 1.5rem' }}>
+          {status === 'saving' ? 'GUARDANDO...' : status === 'saved' ? '✓ GUARDADO' : 'GUARDAR'}
         </button>
-        <span style={{ fontSize: '0.45rem', color: 'var(--mc-text-muted, #aaa)' }}>
-          Aplica al próximo AGREGAR
+        <span style={{ fontFamily: 'var(--font-terminal)', fontSize: '1rem', color: 'var(--mc-text-dim)' }}>
+          Aplica al próximo reconectar
         </span>
       </div>
 
       {status === 'error' && (
-        <div style={{ fontSize: '0.5rem', color: 'var(--mc-danger)', marginTop: '0.2rem' }}>
+        <div style={{ fontFamily: 'var(--font-terminal)', fontSize: '1.1rem', color: 'var(--mc-danger)' }}>
           {errorMsg}
         </div>
       )}

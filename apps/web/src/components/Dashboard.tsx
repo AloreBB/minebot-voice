@@ -9,8 +9,8 @@ import { VoiceButton } from './VoiceButton'
 import { CommandDisplay } from './CommandDisplay'
 import { TextCommandInput } from './TextCommandInput'
 import { BotControlButton } from './BotControlButton'
-import { ServerConfigPanel } from './ServerConfigPanel'
-import { AIProviderPanel } from './AIProviderPanel.js'
+import { ConfigDrawer } from './ConfigDrawer.js'
+import { PROVIDER_COLORS } from './AIProviderPanel.js'
 
 interface Props {
   token: string
@@ -30,8 +30,7 @@ export function Dashboard({ token, onLogout }: Props) {
     addProvider, updateProvider, activateProvider, deleteProvider,
   } = useAIProviders(token)
 
-  const [showServerConfig, setShowServerConfig] = useState(false)
-  const [showAIConfig, setShowAIConfig] = useState(false)
+  const [showConfig, setShowConfig] = useState(false)
 
   const pointerDownTimeRef = useRef(0)
   const longPressHandled = useRef(false)
@@ -41,9 +40,7 @@ export function Dashboard({ token, onLogout }: Props) {
     pointerDownTimeRef.current = Date.now()
     longPressHandled.current = false
     longPressTimer.current = setTimeout(() => {
-      if (voiceState !== 'listening') {
-        startListening()
-      }
+      if (voiceState !== 'listening') startListening()
     }, 400)
   }, [voiceState, startListening])
 
@@ -57,120 +54,128 @@ export function Dashboard({ token, onLogout }: Props) {
 
   const handleClick = useCallback(() => {
     if (longPressTimer.current) clearTimeout(longPressTimer.current)
-
     if (longPressHandled.current) return
     const held = Date.now() - pointerDownTimeRef.current
     if (held > 400) return
-
-    if (voiceState === 'listening') {
-      stopListening()
-    } else {
-      startListening()
-    }
+    if (voiceState === 'listening') stopListening()
+    else startListening()
   }, [voiceState, startListening, stopListening])
 
+  const activeColor = activeProvider ? PROVIDER_COLORS[activeProvider.providerType] : undefined
+
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      minHeight: '100dvh',
-      maxWidth: '600px',
-      margin: '0 auto',
-      padding: '0.75rem',
-      gap: '0.5rem',
-    }}>
+    <>
+      <ConfigDrawer
+        open={showConfig}
+        onClose={() => setShowConfig(false)}
+        serverConfig={serverConfig}
+        onSaveServer={saveServerConfig}
+        providers={providers}
+        providersLoading={providersLoading}
+        onAdd={addProvider}
+        onActivate={activateProvider}
+        onDelete={deleteProvider}
+        onUpdate={updateProvider}
+      />
+
       <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '0.5rem 0',
+        display: 'flex', flexDirection: 'column',
+        minHeight: '100dvh', maxWidth: '600px',
+        margin: '0 auto', padding: '0.75rem', gap: '0.5rem',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <h1 style={{
-            fontFamily: 'var(--font-pixel)',
-            fontSize: '0.7rem',
-            letterSpacing: '2px',
-            textShadow: '2px 2px 0 var(--mc-text-shadow)',
-          }}>
-            MINEBOT
-          </h1>
-          <BotControlButton
-            status={botStatus}
-            onConnect={connectBot}
-            onDisconnect={disconnectBot}
+        {/* Header */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between',
+          alignItems: 'center', padding: '0.5rem 0',
+          gap: '0.5rem',
+        }}>
+          {/* Left: logo + bot control + AI badge */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+            <h1 style={{
+              fontFamily: 'var(--font-pixel)', fontSize: '0.7rem',
+              letterSpacing: '2px', textShadow: '2px 2px 0 var(--mc-text-shadow)',
+              flexShrink: 0,
+            }}>
+              MINEBOT
+            </h1>
+            <BotControlButton status={botStatus} onConnect={connectBot} onDisconnect={disconnectBot} />
+
+            {/* Active AI badge — click to open config */}
+            <button
+              onClick={() => setShowConfig(true)}
+              title={activeProvider ? `Proveedor activo: ${activeProvider.displayName}` : 'Configurar proveedor de IA'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.4rem',
+                background: 'var(--mc-bg)', cursor: 'pointer',
+                border: `1px solid ${activeProvider ? 'var(--mc-border-dark)' : 'var(--mc-warning)'}`,
+                padding: '0.3rem 0.6rem', flexShrink: 1, minWidth: 0, overflow: 'hidden',
+              }}
+            >
+              {activeProvider ? (
+                <>
+                  <span style={{
+                    width: '0.65rem', height: '0.65rem', flexShrink: 0,
+                    background: activeColor,
+                    display: 'inline-block',
+                  }} />
+                  <span style={{
+                    fontFamily: 'var(--font-terminal)', fontSize: '1rem',
+                    color: 'var(--mc-text)', whiteSpace: 'nowrap',
+                    overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {activeProvider.model}
+                  </span>
+                </>
+              ) : (
+                <span style={{
+                  fontFamily: 'var(--font-terminal)', fontSize: '1rem',
+                  color: 'var(--mc-warning)', whiteSpace: 'nowrap',
+                }}>
+                  ⚠ SIN IA
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Right: config + logout */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+            <button
+              onClick={() => setShowConfig(true)}
+              className="mc-btn"
+              title="Configuración"
+              style={{ fontFamily: 'var(--font-terminal)', fontSize: '1.3rem', padding: '0.35rem 0.7rem' }}
+            >
+              ⚙
+            </button>
+            <button
+              onClick={onLogout}
+              className="mc-btn"
+              style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.4rem', padding: '0.4rem 0.8rem' }}
+            >
+              SALIR
+            </button>
+          </div>
+        </div>
+
+        <StatsPanel stats={stats} botStatus={botStatus} />
+
+        <div className="mc-panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <div className="mc-title">Comandos</div>
+          <TextCommandInput onSend={sendCommand} disabled={!connected} />
+          <VoiceButton
+            state={voiceState}
+            isSupported={isSupported}
+            error={voiceError}
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onClick={handleClick}
           />
-          {activeProvider ? (
-            <span style={{
-              fontSize: '0.45rem', color: 'var(--mc-text-muted, #aaa)',
-              background: 'var(--mc-bg-dark)', border: '1px solid var(--mc-border)',
-              padding: '0.15rem 0.4rem', letterSpacing: '0.5px',
-            }}>
-              {activeProvider.model}
-            </span>
-          ) : (
-            <span style={{
-              fontSize: '0.45rem', color: 'var(--mc-warning, #ffaa00)',
-              border: '1px solid var(--mc-warning, #ffaa00)',
-              padding: '0.15rem 0.4rem', letterSpacing: '0.5px',
-            }}>
-              SIN PROVEEDOR IA
-            </span>
-          )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <button
-            onClick={() => setShowServerConfig(v => !v)}
-            className="mc-btn"
-            style={{ fontSize: '0.4rem', padding: '0.4rem 0.8rem' }}
-          >
-            {showServerConfig ? 'SERVIDOR ▴' : 'SERVIDOR ▾'}
-          </button>
-          <button className="mc-btn" onClick={() => setShowAIConfig(v => !v)}
-            style={{ fontSize: '0.4rem', padding: '0.4rem 0.8rem' }}>
-            {showAIConfig ? 'OCULTAR IA' : 'CONFIG IA'}
-          </button>
-          <button onClick={onLogout} className="mc-btn" style={{ fontSize: '0.4rem', padding: '0.4rem 0.8rem' }}>
-            SALIR
-          </button>
-        </div>
+
+        <CommandDisplay transcript={transcript} response={lastResponse} />
+        <InventoryGrid items={inventory} />
+        <ActivityFeed events={activity} onLoadMore={loadMoreActivity} hasMore={hasMoreActivity} loading={loadingActivity} />
       </div>
-
-      {showServerConfig && (
-        <ServerConfigPanel
-          current={serverConfig}
-          onSave={saveServerConfig}
-        />
-      )}
-
-      {showAIConfig && (
-        <AIProviderPanel
-          providers={providers}
-          loading={providersLoading}
-          onAdd={addProvider}
-          onActivate={activateProvider}
-          onDelete={deleteProvider}
-          onUpdate={updateProvider}
-        />
-      )}
-
-      <StatsPanel stats={stats} botStatus={botStatus} />
-
-      <div className="mc-panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        <div className="mc-title">Comandos</div>
-        <TextCommandInput onSend={sendCommand} disabled={!connected} />
-        <VoiceButton
-          state={voiceState}
-          isSupported={isSupported}
-          error={voiceError}
-          onPointerDown={handlePointerDown}
-          onPointerUp={handlePointerUp}
-          onClick={handleClick}
-        />
-      </div>
-
-      <CommandDisplay transcript={transcript} response={lastResponse} />
-      <InventoryGrid items={inventory} />
-      <ActivityFeed events={activity} onLoadMore={loadMoreActivity} hasMore={hasMoreActivity} loading={loadingActivity} />
-    </div>
+    </>
   )
 }
