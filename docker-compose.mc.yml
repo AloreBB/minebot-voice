@@ -1,6 +1,6 @@
-# Optional: Minecraft server for local use.
-# This is NOT required by the bot — you can point the bot to any server.
-# If you use this, make sure BOT_USERNAME is in WHITELIST and OPS.
+# Standalone Minecraft server (Paper + Geyser for Java + Bedrock)
+# Run with: docker compose -f docker-compose.mc.yml up -d
+# Exposes Java on 25565, Bedrock on 19132/udp
 services:
   minecraft:
     image: itzg/minecraft-server:latest
@@ -9,20 +9,20 @@ services:
       EULA: "TRUE"
       VERSION: "${MC_VERSION:-LATEST}"
       TYPE: "${MC_TYPE:-PAPER}"
-      MEMORY: "${MC_MEMORY:-4G}"
+      MEMORY: "${MC_MEMORY:-2G}"
       JVM_XX_OPTS: "-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200"
       DIFFICULTY: "${MC_DIFFICULTY:-normal}"
       MODE: "${MC_MODE:-survival}"
-      MOTD: "${MC_MOTD:-Mi servidor de Minecraft}"
+      MOTD: "${MC_MOTD:-Minecraft Server mc.alore.dev}"
       MAX_PLAYERS: "${MC_MAX_PLAYERS:-10}"
       VIEW_DISTANCE: "${MC_VIEW_DISTANCE:-10}"
       ONLINE_MODE: "false"
       ENFORCE_SECURE_PROFILE: "false"
       ENABLE_RCON: "true"
       RCON_PASSWORD: "${RCON_PASSWORD}"
-      WHITELIST: "${MC_WHITELIST}"          # Comma-separated: Player1,Player2,MineBot
-      ENFORCE_WHITELIST: "FALSE"
-      OPS: "${MC_OPS}"                      # Comma-separated: Player1,MineBot
+      WHITELIST: "${MC_WHITELIST}"
+      ENFORCE_WHITELIST: "false"
+      OPS: "${MC_OPS}"
       SPAWN_PROTECTION: "0"
       RCON_CMDS_STARTUP: "gamerule minecraft:keep_inventory true"
       PLUGINS: |
@@ -35,8 +35,6 @@ services:
       - "19132:19132/udp"
     volumes:
       - ./data:/data
-    networks:
-      - dokploy-network
     restart: unless-stopped
     healthcheck:
       test: mc-health
@@ -44,7 +42,3 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
-networks:
-  dokploy-network:
-    external: true
